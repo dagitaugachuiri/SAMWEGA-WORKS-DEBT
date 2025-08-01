@@ -1,0 +1,32 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Debts collection - users can only access their own debts
+    match /debts/{debtId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+    }
+    
+    // SMS logs collection - read-only for authenticated users, write from server only
+    match /sms_logs/{logId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      // Write operations should be done from server-side only
+    }
+    
+    // Payment logs collection - read-only for authenticated users, write from server only
+    match /payment_logs/{logId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      // Write operations should be done from server-side only
+    }
+    
+    // Users collection - users can only access their own user document
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // System collection for unique code generation - server-side only
+    match /system/{document} {
+      allow read, write: if false; // Server-side only via Admin SDK
+    }
+  }
+}

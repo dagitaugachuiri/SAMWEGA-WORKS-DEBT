@@ -1,0 +1,43 @@
+# Node.js dependencies
+node_modules/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Environment files
+.env
+.env.*
+.env.production
+
+# Build output
+build/
+dist/
+coverage/
+
+# Misc
+.DS_Store
+.idea/
+.vscode/
+*.sublime-workspace
+*.sublime-project
+
+# PM2 logs
+logs/
+*.log
+
+# Test output
+/coverage
+/test-results
+
+# Firebase service account
+*firebase-adminsdk-*.json

@@ -59,6 +59,44 @@ router.post('/mpesa', async (req, res) => {
   }
 });
 
+// POST endpoint to receive M-Pesa SMS webhook (alternative version)
+router.post('/webhook', async (req, res) => {
+  try {
+    console.log('📥 Received SMS webhook:', req.body);
+
+    // Extract message from webhook payload
+    const webhookData = req.body;
+    if (!webhookData || !webhookData.key) {
+      throw new Error('No SMS message provided in request body');
+    }
+
+    // Process the SMS
+    const smsProcessor = require('../services/smsProcessor');
+    const parsedSMS = await smsProcessor.parseMpesaSMS(webhookData);
+
+    if (!parsedSMS.success) {
+      console.warn('⚠️ Failed to parse SMS:', parsedSMS.error);
+      return res.status(400).json(parsedSMS);
+    }
+
+    // Process payment if SMS was parsed successfully
+    const paymentResult = await smsProcessor.processSMSPayment(parsedSMS.data);
+
+    res.json({
+      success: true,
+      message: 'Webhook processed successfully',
+      payment: paymentResult
+    });
+
+  } catch (error) {
+    console.error('❌ Webhook error:', error);
+    res.status(400).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
 // GET endpoint to test SMS parsing (for development/testing)
 router.get('/test-parse', authenticate, async (req, res) => {
   try {

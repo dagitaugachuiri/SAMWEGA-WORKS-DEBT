@@ -1,5 +1,6 @@
 const { getFirestoreApp } = require('./firebase');
 const { collection, query, where, limit, getDocs, doc, updateDoc, addDoc, orderBy } = require('firebase/firestore');
+const smsService = require('./sms');
 
 class SMSProcessor {
   constructor() {
@@ -280,6 +281,29 @@ class SMSProcessor {
 
       await this.logPayment(paymentLog);
 
+      // After successful payment processing and debt update
+      if (debt.storeOwner?.phoneNumber) {
+        try {
+          // Generate and send confirmation SMS
+          const confirmationMessage = smsService.generatePaymentConfirmationSMS(
+            debt,
+            amount
+          );
+
+          await smsService.sendSMS(
+            debt.storeOwner.phoneNumber,
+            confirmationMessage,
+            debt.userId,
+            debt.id
+          );
+
+          console.log('✅ Payment confirmation SMS sent to:', debt.storeOwner.phoneNumber);
+        } catch (smsError) {
+          console.error('❌ Error sending confirmation SMS:', smsError);
+          // Don't throw error - payment was still successful
+        }
+      }
+
       return {
         success: true,
         message: 'Payment processed successfully',
@@ -297,7 +321,8 @@ class SMSProcessor {
           transactionId: transactionId,
           phoneNumber: phoneNumber,
           senderName: senderName
-        }
+        },
+        confirmationSent: true
       };
 
     } catch (error) {

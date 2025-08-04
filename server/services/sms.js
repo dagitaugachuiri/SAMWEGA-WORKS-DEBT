@@ -156,7 +156,7 @@ class SMSService {
       currency: 'KES'
     }).format(paymentAmount);
 
-    const smsMessage = `Payment of ${formattedAmount} received for debt #${debtCode}. Thank you for your payment! - Samwega Works Ltd`;
+    const smsMessage = `Payment of ${formattedAmount} received for debt #${debtCode}. Thank you. Samwega Works Ltd`;
     
     console.log('✅ Payment confirmation SMS generated successfully');
     console.log(`   - Message length: ${smsMessage.length} characters`);

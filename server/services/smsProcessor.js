@@ -11,64 +11,128 @@ class SMSProcessor {
     try {
       console.log('Parsing SMS message:', smsMessage);
 
-      // Sample message format:
-      // 'GT87HJ890 Confirmed. You have received Ksh500.00 from JOHN DOE 254722123456 for account 12345 via Paybill 570425 on 2024-07-26 at 10:30 AM. New M-PESA balance is Ksh10,000.00'
-
-      // Extract amount (Ksh500.00)
-      const amountMatch = smsMessage.match(/Ksh([\d,]+\.?\d*)/);
-      const amount = amountMatch ? parseFloat(amountMatch[1].replace(/,/g, '')) : null;
-
-      // Extract account number (12345)
-      const accountMatch = smsMessage.match(/for account (\d+)/);
-      const accountNumber = accountMatch ? accountMatch[1] : null;
-
-      // Extract phone number (254722123456)
-      const phoneMatch = smsMessage.match(/(\d{12})/);
-      const phoneNumber = phoneMatch ? phoneMatch[1] : null;
-
-      // Extract date and time (2024-07-26 at 10:30 AM)
-      const dateMatch = smsMessage.match(/on (\d{4}-\d{2}-\d{2}) at (\d{1,2}:\d{2} (?:AM|PM))/);
-      let transactionDate = null;
-      if (dateMatch) {
-        const dateStr = dateMatch[1];
-        const timeStr = dateMatch[2];
-        transactionDate = new Date(`${dateStr} ${timeStr}`);
+      // Handle empty or invalid message
+      if (!smsMessage || typeof smsMessage !== 'string') {
+        throw new Error('No SMS message provided or invalid format');
       }
 
-      // Extract transaction ID (GT87HJ890)
-      const transactionIdMatch = smsMessage.match(/^([A-Z0-9]+)/);
-      const transactionId = transactionIdMatch ? transactionIdMatch[1] : null;
-
-      // Extract paybill number (570425)
-      const paybillMatch = smsMessage.match(/Paybill (\d+)/);
-      const paybillNumber = paybillMatch ? paybillMatch[1] : null;
-
-      // Extract sender name (JOHN DOE)
-      const senderMatch = smsMessage.match(/from ([A-Z\s]+) \d{12}/);
-      const senderName = senderMatch ? senderMatch[1].trim() : null;
-
-      const parsedData = {
-        transactionId,
-        amount,
-        accountNumber,
-        phoneNumber,
-        transactionDate,
-        paybillNumber,
-        senderName,
-        originalMessage: smsMessage
+      // New regex patterns for different message formats
+      const patterns = {
+        // Balance message format
+        balance: {
+          transactionId: /([A-Z0-9]{10})\s+Confirmed/,
+          mpesaBalance: /M-PESA Account\s*:\s*Ksh([\d,]+\.?\d*)/,
+          businessBalance: /Business Account\s*:\s*Ksh([\d,]+\.?\d*)/,
+          datetime: /on\s+(\d{1,2}\/\d{1,2}\/\d{2})\s+at\s+(\d{1,2}:\d{2}\s+(?:AM|PM))/,
+          cost: /Transaction cost,\s*Ksh([\d,]+\.?\d*)/
+        },
+        // Payment received format (existing format)
+        payment: {
+          transactionId: /^([A-Z0-9]+)/,
+          amount: /Ksh([\d,]+\.?\d*)/,
+          accountNumber: /for account (\d+)/,
+          phoneNumber: /(\d{12})/,
+          datetime: /on (\d{4}-\d{2}-\d{2}) at (\d{1,2}:\d{2} (?:AM|PM))/,
+          paybill: /Paybill (\d+)/,
+          senderName: /from ([A-Z\s]+) \d{12}/
+        }
       };
 
-      console.log('Parsed SMS data:', parsedData);
+      // Determine message type
+      const isBalanceMessage = smsMessage.includes('Your account balance was');
+      const messageType = isBalanceMessage ? 'balance' : 'payment';
+      const pattern = patterns[messageType];
 
-      // Validate required fields
-      if (!amount || !accountNumber) {
-        throw new Error('Missing required fields: amount or account number');
+      if (messageType === 'balance') {
+        // Parse balance message
+        const transactionIdMatch = smsMessage.match(pattern.transactionId);
+        const mpesaBalanceMatch = smsMessage.match(pattern.mpesaBalance);
+        const businessBalanceMatch = smsMessage.match(pattern.businessBalance);
+        const dateTimeMatch = smsMessage.match(pattern.datetime);
+        const costMatch = smsMessage.match(pattern.cost);
+
+        let transactionDate = null;
+        if (dateTimeMatch) {
+          const [_, date, time] = dateTimeMatch;
+          // Convert date from DD/MM/YY to YYYY-MM-DD
+          const [day, month, year] = date.split('/');
+          const fullYear = `20${year}`;
+          transactionDate = new Date(`${fullYear}-${month}-${day} ${time}`);
+        }
+
+        const parsedData = {
+          messageType: 'balance',
+          transactionId: transactionIdMatch ? transactionIdMatch[1] : null,
+          mpesaBalance: mpesaBalanceMatch ? parseFloat(mpesaBalanceMatch[1].replace(/,/g, '')) : null,
+          businessBalance: businessBalanceMatch ? parseFloat(businessBalanceMatch[1].replace(/,/g, '')) : null,
+          transactionDate,
+          transactionCost: costMatch ? parseFloat(costMatch[1].replace(/,/g, '')) : null,
+          originalMessage: smsMessage
+        };
+
+        console.log('Parsed balance SMS data:', parsedData);
+        return {
+          success: true,
+          data: parsedData
+        };
+      } else {
+        // Use existing payment message parsing logic
+        // Extract amount (Ksh500.00)
+        const amountMatch = smsMessage.match(/Ksh([\d,]+\.?\d*)/);
+        const amount = amountMatch ? parseFloat(amountMatch[1].replace(/,/g, '')) : null;
+
+        // Extract account number (12345)
+        const accountMatch = smsMessage.match(/for account (\d+)/);
+        const accountNumber = accountMatch ? accountMatch[1] : null;
+
+        // Extract phone number (254722123456)
+        const phoneMatch = smsMessage.match(/(\d{12})/);
+        const phoneNumber = phoneMatch ? phoneMatch[1] : null;
+
+        // Extract date and time (2024-07-26 at 10:30 AM)
+        const dateMatch = smsMessage.match(/on (\d{4}-\d{2}-\d{2}) at (\d{1,2}:\d{2} (?:AM|PM))/);
+        let transactionDate = null;
+        if (dateMatch) {
+          const dateStr = dateMatch[1];
+          const timeStr = dateMatch[2];
+          transactionDate = new Date(`${dateStr} ${timeStr}`);
+        }
+
+        // Extract transaction ID (GT87HJ890)
+        const transactionIdMatch = smsMessage.match(/^([A-Z0-9]+)/);
+        const transactionId = transactionIdMatch ? transactionIdMatch[1] : null;
+
+        // Extract paybill number (570425)
+        const paybillMatch = smsMessage.match(/Paybill (\d+)/);
+        const paybillNumber = paybillMatch ? paybillMatch[1] : null;
+
+        // Extract sender name (JOHN DOE)
+        const senderMatch = smsMessage.match(/from ([A-Z\s]+) \d{12}/);
+        const senderName = senderMatch ? senderMatch[1].trim() : null;
+
+        const parsedData = {
+          transactionId,
+          amount,
+          accountNumber,
+          phoneNumber,
+          transactionDate,
+          paybillNumber,
+          senderName,
+          originalMessage: smsMessage
+        };
+
+        console.log('Parsed SMS data:', parsedData);
+
+        // Validate required fields
+        if (!amount || !accountNumber) {
+          throw new Error('Missing required fields: amount or account number');
+        }
+
+        return {
+          success: true,
+          data: parsedData
+        };
       }
-
-      return {
-        success: true,
-        data: parsedData
-      };
 
     } catch (error) {
       console.error('Error parsing SMS message:', error);
@@ -403,6 +467,90 @@ class SMSProcessor {
       };
     }
   }
+
+  // Parse M-Pesa webhook data to extract payment details
+  parseMpesaSMS(webhookData) {
+    try {
+      console.log('Received webhook data:', webhookData);
+
+      // Extract message body from webhook object
+      const smsMessage = webhookData?.key || '';
+      console.log('Extracted SMS message:', smsMessage);
+
+      // Handle empty or invalid message
+      if (!smsMessage || typeof smsMessage !== 'string') {
+        throw new Error('No SMS message provided or invalid format');
+      }
+
+      // Payment message patterns
+      const patterns = {
+        transactionId: /^([A-Z0-9]+)/,
+        amount: /Ksh([\d,]+\.?\d*)/,
+        accountNumber: /for account (\d+)/,
+        phoneNumber: /(\d{12})/,
+        datetime: /on (\d{4}-\d{2}-\d{2}) at (\d{1,2}:\d{2} (?:AM|PM))/,
+        paybill: /Paybill (\d+)/,
+        senderName: /from ([A-Z\s]+) \d{12}/
+      };
+
+      // Extract payment details
+      const amountMatch = smsMessage.match(patterns.amount);
+      const amount = amountMatch ? parseFloat(amountMatch[1].replace(/,/g, '')) : null;
+
+      const accountMatch = smsMessage.match(patterns.accountNumber);
+      const accountNumber = accountMatch ? accountMatch[1] : null;
+
+      const phoneMatch = smsMessage.match(patterns.phoneNumber);
+      const phoneNumber = phoneMatch ? phoneMatch[1] : null;
+
+      const dateMatch = smsMessage.match(patterns.datetime);
+      let transactionDate = null;
+      if (dateMatch) {
+        const [_, dateStr, timeStr] = dateMatch;
+        transactionDate = new Date(`${dateStr} ${timeStr}`);
+      }
+
+      const transactionIdMatch = smsMessage.match(patterns.transactionId);
+      const transactionId = transactionIdMatch ? transactionIdMatch[1] : null;
+
+      const paybillMatch = smsMessage.match(patterns.paybill);
+      const paybillNumber = paybillMatch ? paybillMatch[1] : null;
+
+      const senderMatch = smsMessage.match(patterns.senderName);
+      const senderName = senderMatch ? senderMatch[1].trim() : null;
+
+      const parsedData = {
+        transactionId,
+        amount,
+        accountNumber,
+        phoneNumber,
+        transactionDate,
+        paybillNumber,
+        senderName,
+        originalMessage: smsMessage
+      };
+
+      console.log('Parsed SMS data:', parsedData);
+
+      // Validate required fields
+      if (!amount || !accountNumber) {
+        throw new Error('Missing required fields: amount or account number');
+      }
+
+      return {
+        success: true,
+        data: parsedData
+      };
+
+    } catch (error) {
+      console.error('Error parsing SMS message:', error);
+      return {
+        success: false,
+        error: error.message,
+        originalMessage: smsMessage
+      };
+    }
+  }
 }
 
-module.exports = new SMSProcessor(); 
+module.exports = new SMSProcessor();

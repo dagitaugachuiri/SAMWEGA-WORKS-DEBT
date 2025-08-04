@@ -454,4 +454,62 @@ router.delete('/:id', authenticate, async (req, res) => {
   }
 });
 
+// Add this new route to handle resending invoice SMS
+router.post('/:id/resend-invoice-sms', authenticate, async (req, res) => {
+  try {
+    const db = getFirestoreApp();
+    const { id } = req.params;
+    const userId = req.user.uid;
+
+    // Get the debt document
+    const debtDoc = doc(db, 'debts', id);
+    const debtSnapshot = await getDoc(debtDoc);
+
+    if (!debtSnapshot.exists()) {
+      return res.status(404).json({
+        success: false,
+        error: 'Debt not found'
+      });
+    }
+
+    const debt = { id: debtSnapshot.id, ...debtSnapshot.data() };
+
+    // Check ownership
+    if (debt.userId !== userId) {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied'
+      });
+    }
+
+    // Generate and send invoice SMS
+    const smsMessage = smsService.generateInvoiceSMS(debt);
+    const smsResult = await smsService.sendSMS(
+      debt.storeOwner.phoneNumber,
+      smsMessage,
+      userId,
+      id
+    );
+
+    // Update last SMS sent timestamp
+    await updateDoc(debtDoc, {
+      lastInvoiceSMSSent: new Date(),
+      lastUpdatedAt: new Date()
+    });
+
+    res.json({
+      success: true,
+      message: 'Invoice SMS resent successfully',
+      sms: smsResult
+    });
+
+  } catch (error) {
+    console.error('Resend invoice SMS error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to resend invoice SMS'
+    });
+  }
+});
+
 module.exports = router;

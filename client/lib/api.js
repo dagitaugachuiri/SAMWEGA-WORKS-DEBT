@@ -69,7 +69,12 @@ export const apiService = {
       api.patch(`/api/debts/${debtId}/status`, statusData),
     
     // Delete debt
-    delete: (debtId) => api.delete(`/api/debts/${debtId}`)
+    delete: (debtId) => api.delete(`/api/debts/${debtId}`),
+
+    // Resend invoice SMS
+    resendInvoiceSMS: async (debtId) => {
+      return axios.post(`${API_BASE_URL}/api/debts/${debtId}/resend-invoice-sms`);
+    }
   },
 
   // Payment management

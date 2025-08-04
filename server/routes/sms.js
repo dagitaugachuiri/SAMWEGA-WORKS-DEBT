@@ -4,66 +4,58 @@ const smsProcessor = require('../services/smsProcessor');
 
 const router = express.Router();
 
+// Standardized error response helper
+const createErrorResponse = (status, message, details = {}, originalData = null) => ({
+  success: false,
+  error: {
+    message,
+    code: status,
+    details: process.env.NODE_ENV === 'development' ? details : undefined, // Include details only in dev mode
+    originalData
+  }
+});
+
 // POST endpoint to receive M-Pesa SMS messages
 router.post('/mpesa', async (req, res) => {
   try {
-    console.log('Received SMS webhook:', req.body);
+    console.log('📥 Received SMS webhook:', JSON.stringify(req.body, null, 2));
 
     const { message, smsText, text, content } = req.body;
-    
-    // Extract SMS message from various possible field names
     const smsMessage = message || smsText || text || content;
 
     if (!smsMessage) {
-      console.error('No SMS message provided in request body');
-      return res.status(400).json({
-        success: false,
-        error: 'SMS message is required',
-        receivedData: req.body
-      });
+      console.error('❌ No SMS message provided in request body');
+      return res.status(400).json(createErrorResponse(400, 'SMS message is required', { fields: ['message', 'smsText', 'text', 'content'] }, req.body));
     }
 
-    console.log('Processing SMS message:', smsMessage);
+    console.log('📋 Processing SMS message:', smsMessage);
 
     // Parse the SMS message
     const parseResult = smsProcessor.parseMpesaSMS(smsMessage);
-    
+
     if (!parseResult.success) {
-      console.error('Failed to parse SMS message:', parseResult.error);
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid SMS message format',
-        details: parseResult.error,
-        originalMessage: smsMessage
-      });
+      console.error('❌ Failed to parse SMS message:', parseResult.error);
+      return res.status(400).json(createErrorResponse(400, 'Invalid SMS message format', { error: parseResult.error }, smsMessage));
     }
 
     // Process the payment
     const processResult = await smsProcessor.processSMSPayment(parseResult.data);
 
-    if (processResult.success) {
-      console.log('SMS payment processed successfully:', processResult);
-      return res.status(200).json({
-        success: true,
-        message: 'Payment processed successfully',
-        data: processResult
-      });
-    } else {
-      console.error('Failed to process SMS payment:', processResult.error);
-      return res.status(400).json({
-        success: false,
-        error: processResult.error,
-        accountNumber: processResult.accountNumber
-      });
+    if (!processResult.success) {
+      console.error('❌ Failed to process SMS payment:', processResult.error);
+      return res.status(400).json(createErrorResponse(400, 'Payment processing failed', { error: processResult.error, accountNumber: processResult.accountNumber }));
     }
 
-  } catch (error) {
-    console.error('Error processing SMS webhook:', error);
-    return res.status(500).json({
-      success: false,
-      error: 'Internal server error',
-      message: error.message
+    console.log('✅ SMS payment processed successfully:', JSON.stringify(processResult, null, 2));
+    return res.status(200).json({
+      success: true,
+      message: 'Payment processed successfully',
+      data: processResult
     });
+
+  } catch (error) {
+    console.error('❌ Error processing SMS webhook:', error.message, error.stack);
+    return res.status(500).json(createErrorResponse(500, 'Internal server error', { stack: error.stack }));
   }
 });
 
@@ -71,27 +63,28 @@ router.post('/mpesa', async (req, res) => {
 router.get('/test-parse', authenticate, async (req, res) => {
   try {
     const { message } = req.query;
-    
+
     if (!message) {
-      return res.status(400).json({
-        success: false,
-        error: 'Message parameter is required'
-      });
+      console.error('❌ Message query parameter missing');
+      return res.status(400).json(createErrorResponse(400, 'Message parameter is required'));
+    }
+
+    if (typeof message !== 'string') {
+      console.error('❌ Message must be a string');
+      return res.status(400).json(createErrorResponse(400, 'Message must be a string', { receivedType: typeof message }));
     }
 
     const parseResult = smsProcessor.parseMpesaSMS(message);
-    
-    res.json({
+
+    console.log('✅ SMS parsing test completed:', JSON.stringify(parseResult, null, 2));
+    return res.status(200).json({
       success: true,
-      parseResult: parseResult
+      parseResult
     });
 
   } catch (error) {
-    console.error('Error testing SMS parsing:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    console.error('❌ Error testing SMS parsing:', error.message, error.stack);
+    return res.status(500).json(createErrorResponse(500, 'Internal server error', { stack: error.stack }));
   }
 });
 
@@ -99,40 +92,38 @@ router.get('/test-parse', authenticate, async (req, res) => {
 router.post('/test-process', authenticate, async (req, res) => {
   try {
     const { message } = req.body;
-    
+
     if (!message) {
-      return res.status(400).json({
-        success: false,
-        error: 'Message is required in request body'
-      });
+      console.error('❌ Message field missing in request body');
+      return res.status(400).json(createErrorResponse(400, 'Message is required in request body', { receivedBody: req.body }));
+    }
+
+    if (typeof message !== 'string') {
+      console.error('❌ Message must be a string');
+      return res.status(400).json(createErrorResponse(400, 'Message must be a string', { receivedType: typeof message }));
     }
 
     // Parse the SMS message
     const parseResult = smsProcessor.parseMpesaSMS(message);
-    
+
     if (!parseResult.success) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid SMS message format',
-        details: parseResult.error
-      });
+      console.error('❌ Failed to parse SMS message:', parseResult.error);
+      return res.status(400).json(createErrorResponse(400, 'Invalid SMS message format', { error: parseResult.error }, message));
     }
 
-    // Process the payment (dry run - don't actually update debt)
+    // Process the payment (dry run)
     const processResult = await smsProcessor.processSMSPayment(parseResult.data);
-    
-    res.json({
+
+    console.log('✅ SMS processing test completed:', JSON.stringify({ parseResult, processResult }, null, 2));
+    return res.status(200).json({
       success: true,
-      parseResult: parseResult,
-      processResult: processResult
+      parseResult,
+      processResult
     });
 
   } catch (error) {
-    console.error('Error testing SMS processing:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    console.error('❌ Error testing SMS processing:', error.message, error.stack);
+    return res.status(500).json(createErrorResponse(500, 'Internal server error', { stack: error.stack }));
   }
 });
 
@@ -140,25 +131,21 @@ router.post('/test-process', authenticate, async (req, res) => {
 router.get('/unmatched', authenticate, async (req, res) => {
   try {
     const result = await smsProcessor.getUnmatchedTransactions();
-    
-    if (result.success) {
-      res.json({
-        success: true,
-        data: result.transactions
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        error: result.error
-      });
+
+    if (!result.success) {
+      console.error('❌ Failed to retrieve unmatched transactions:', result.error);
+      return res.status(500).json(createErrorResponse(500, 'Failed to retrieve unmatched transactions', { error: result.error }));
     }
 
-  } catch (error) {
-    console.error('Error getting unmatched transactions:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
+    console.log('✅ Retrieved unmatched transactions:', JSON.stringify(result.transactions, null, 2));
+    return res.status(200).json({
+      success: true,
+      data: result.transactions
     });
+
+  } catch (error) {
+    console.error('❌ Error getting unmatched transactions:', error.message, error.stack);
+    return res.status(500).json(createErrorResponse(500, 'Internal server error', { stack: error.stack }));
   }
 });
 
@@ -166,34 +153,33 @@ router.get('/unmatched', authenticate, async (req, res) => {
 router.get('/summary/:debtId', authenticate, async (req, res) => {
   try {
     const { debtId } = req.params;
-    
+
     if (!debtId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Debt ID is required'
-      });
+      console.error('❌ Debt ID missing in request');
+      return res.status(400).json(createErrorResponse(400, 'Debt ID is required'));
+    }
+
+    if (typeof debtId !== 'string') {
+      console.error('❌ Debt ID must be a string');
+      return res.status(400).json(createErrorResponse(400, 'Debt ID must be a string', { receivedType: typeof debtId }));
     }
 
     const result = await smsProcessor.getPaymentSummary(debtId);
-    
-    if (result.success) {
-      res.json({
-        success: true,
-        data: result.summary
-      });
-    } else {
-      res.status(500).json({
-        success: false,
-        error: result.error
-      });
+
+    if (!result.success) {
+      console.error('❌ Failed to retrieve payment summary:', result.error);
+      return res.status(500).json(createErrorResponse(500, 'Failed to retrieve payment summary', { error: result.error }));
     }
 
-  } catch (error) {
-    console.error('Error getting payment summary:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
+    console.log('✅ Payment summary retrieved:', JSON.stringify(result.summary, null, 2));
+    return res.status(200).json({
+      success: true,
+      data: result.summary
     });
+
+  } catch (error) {
+    console.error('❌ Error getting payment summary:', error.message, error.stack);
+    return res.status(500).json(createErrorResponse(500, 'Internal server error', { stack: error.stack }));
   }
 });
 
@@ -201,47 +187,50 @@ router.get('/summary/:debtId', authenticate, async (req, res) => {
 router.post('/manual-process', authenticate, async (req, res) => {
   try {
     const { message, debtCode } = req.body;
-    
+
     if (!message) {
-      return res.status(400).json({
-        success: false,
-        error: 'SMS message is required'
-      });
+      console.error('❌ SMS message missing in request body');
+      return res.status(400).json(createErrorResponse(400, 'SMS message is required', { receivedBody: req.body }));
+    }
+
+    if (typeof message !== 'string') {
+      console.error('❌ Message must be a string');
+      return res.status(400).json(createErrorResponse(400, 'Message must be a string', { receivedType: typeof message }));
+    }
+
+    if (debtCode && typeof debtCode !== 'string') {
+      console.error('❌ Debt code must be a string');
+      return res.status(400).json(createErrorResponse(400, 'Debt code must be a string', { receivedType: typeof debtCode }));
     }
 
     // Parse the SMS message
     const parseResult = smsProcessor.parseMpesaSMS(message);
-    
+
     if (!parseResult.success) {
-      return res.status(400).json({
-        success: false,
-        error: 'Invalid SMS message format',
-        details: parseResult.error
-      });
+      console.error('❌ Failed to parse SMS message:', parseResult.error);
+      return res.status(400).json(createErrorResponse(400, 'Invalid SMS message format', { error: parseResult.error }, message));
     }
 
-    // If debtCode is provided, override the account number from SMS
+    // Override account number if debtCode is provided
     if (debtCode) {
       parseResult.data.accountNumber = debtCode;
-      console.log('Overriding account number with provided debtCode:', debtCode);
+      console.log('🔄 Overriding account number with provided debtCode:', debtCode);
     }
 
     // Process the payment
     const processResult = await smsProcessor.processSMSPayment(parseResult.data);
-    
-    res.json({
+
+    console.log('✅ Manual SMS processing completed:', JSON.stringify({ parseResult, processResult }, null, 2));
+    return res.status(200).json({
       success: true,
-      parseResult: parseResult,
-      processResult: processResult
+      parseResult,
+      processResult
     });
 
   } catch (error) {
-    console.error('Error manually processing SMS:', error);
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
+    console.error('❌ Error manually processing SMS:', error.message, error.stack);
+    return res.status(500).json(createErrorResponse(500, 'Internal server error', { stack: error.stack }));
   }
 });
 
-module.exports = router; 
+module.exports = router;

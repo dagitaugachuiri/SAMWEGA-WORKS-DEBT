@@ -25,6 +25,9 @@ const PORT = process.env.PORT || 5000;
 // Initialize Firebase Admin SDK
 initializeFirebase();
 
+// Enable trust proxy - add this BEFORE other middleware
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 app.use(compression());
@@ -33,6 +36,8 @@ app.use(compression());
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
   message: 'Too many requests from this IP, please try again later.'
 });
 app.use('/api/', limiter);
@@ -43,8 +48,7 @@ app.use(cors({
     ? ['https://smwoks-1.onrender.com'] // Add your frontend domain
     : ['http://localhost:3000'],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  maxAge: 600 // Increase preflight cache to 10 minutes
+
 }));
 
 // Body parsing middleware

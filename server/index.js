@@ -46,7 +46,7 @@ app.use('/api/', limiter);
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
     ? ['https://smwoks-1.onrender.com'] // Add your frontend domain
-    : ['http://localhost:3000'],
+    : ['https://smwoks-1.onrender.com'],
   credentials: true,
 
 }));

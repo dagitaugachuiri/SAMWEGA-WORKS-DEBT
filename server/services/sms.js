@@ -111,16 +111,16 @@ class SMSService {
   generateInvoiceSMS(debt) {
     console.log('📝 Generating invoice SMS...');
     console.log(`   - Debt Code: ${debt.debtCode}`);
-    console.log(`   - Amount: ${debt.amount}`);
-    console.log(`   - Payment Method: ${debt.paymentMethod}`);
+    console.log(`   - Original Amount: ${debt.amount}`);
+    console.log(`   - Remaining Amount: ${debt.remainingAmount}`);
 
-    const { amount, debtCode, paymentMethod, dueDate } = debt;
+    const { debtCode, paymentMethod, dueDate, remainingAmount } = debt;
     
-    // Format amount without decimals for cleaner SMS
+    // Use remaining amount instead of original amount
     const formattedAmount = new Intl.NumberFormat('en-KE', {
       style: 'decimal',
       maximumFractionDigits: 0
-    }).format(amount);
+    }).format(remainingAmount || debt.amount); // Fallback to original amount if remaining not set
 
     // Format date in shorter format
     console.log(`   - Due Date: ${dueDate}`);
@@ -135,8 +135,8 @@ class SMSService {
       ? `Paybill ${process.env.SAMWEGA_PAYBILL}, Acc ${debtCode}`
       : `Ref: ${debtCode}`;
 
-    // Construct message in most concise format
-    const message = `Samwega: Pay Ksh${formattedAmount} #${debtCode}. ${paymentInfo}. Due ${dueDate}`;
+    // Construct message with remaining amount
+    const message = `Samwega: Outstanding Ksh${formattedAmount} for #${debtCode}. ${paymentInfo}. Due by ${formattedDate}.`;
 
     console.log('✅ Invoice SMS generated successfully');
     console.log(`   - Message length: ${message.length} characters`);

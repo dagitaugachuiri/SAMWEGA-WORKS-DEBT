@@ -6,21 +6,25 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "start": "next start"
   },
   "dependencies": {
-    "axios": "^1.5.0",
-    "firebase": "^10.5.0",
-    "lucide-react": "^0.292.0",
-    "next": "14.0.0",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "react-hook-form": "^7.47.0",
-    "react-hot-toast": "^2.4.1",
-    "react-tooltip": "^5.29.1"
+   "@babel/runtime": "^7.23.2",
+  "axios": "^1.5.0",
+  "firebase": "^10.5.0",
+  "lucide-react": "^0.292.0",
+  "next": "14.0.0",
+  "react": "18.3.1",
+  "react-dom": "18.3.1",
+  "react-hook-form": "^7.47.0",
+  "react-hot-toast": "^2.4.1",
+  "react-tooltip": "^5.29.1"
   },
   "devDependencies": {
+    "@babel/core": "^7.23.2",
+    "@babel/plugin-transform-runtime": "^7.23.2",
+    "@babel/preset-env": "^7.23.2",
+    "@babel/preset-react": "^7.22.15",
     "@tailwindcss/forms": "^0.5.10",
     "autoprefixer": "^10.4.16",
     "eslint": "8.52.0",
@@ -36,5 +40,10 @@
     "kenya"
   ],
   "author": "Samwega Works Ltd.",
-  "license": "ISC"
+  "license": "ISC",
+  "browserslist": [
+  "last 2 versions",
+  "> 1%",
+  "not dead"
+]
 }

@@ -150,14 +150,14 @@ export default function Dashboard() {
               </div>
               
               <div className="flex items-center space-x-4">
-                <button
+                {/* <button
                   data-tooltip-id="test-tooltip"
                   onClick={() => setShowTestModal(true)}
                   className="btn-secondary flex items-center space-x-2"
                 >
                   <TestTube className="h-4 w-4" />
                   <span>Test System</span>
-                </button>
+                </button> */}
                 
                 <div className="text-sm text-gray-600">
                   {user.email}

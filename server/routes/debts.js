@@ -472,7 +472,13 @@ router.post('/:id/resend-invoice-sms', authenticate, async (req, res) => {
       });
     }
 
-    const debt = { id: debtSnapshot.id, ...debtSnapshot.data() };
+    const debt = { 
+      id: debtSnapshot.id, 
+      ...debtSnapshot.data(),
+      // Ensure remainingAmount is properly set
+      remainingAmount: debtSnapshot.data().remainingAmount || 
+                      (debtSnapshot.data().amount - (debtSnapshot.data().paidAmount || 0))
+    };
 
     // Check ownership
     if (debt.userId !== userId) {
@@ -482,7 +488,14 @@ router.post('/:id/resend-invoice-sms', authenticate, async (req, res) => {
       });
     }
 
-    // Generate and send invoice SMS
+    if (debt.remainingAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Debt is already fully paid'
+      });
+    }
+
+    // Generate and send invoice SMS with remaining amount
     const smsMessage = smsService.generateInvoiceSMS(debt);
     const smsResult = await smsService.sendSMS(
       debt.storeOwner.phoneNumber,

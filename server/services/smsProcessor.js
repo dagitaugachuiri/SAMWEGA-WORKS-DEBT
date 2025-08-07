@@ -499,7 +499,7 @@ class SMSProcessor {
       console.log('Received webhook data:', webhookData);
 
       // Extract message body from webhook object
-      const rawMessage = webhookData?.key || '';
+      const rawMessage = webhookData?.body;
       // Remove "From : MPESA()" prefix if present
       const smsMessage = rawMessage.replace(/^From\s*:\s*MPESA\(\)\n/, '');
       

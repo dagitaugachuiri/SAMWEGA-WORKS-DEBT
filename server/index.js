@@ -41,12 +41,10 @@ const limiter = rateLimit({
   message: 'Too many requests from this IP, please try again later.'
 });
 app.use('/api/', limiter);
-
+  
 // CORS configuration 
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://smwoks-1.onrender.com'] // Add your frontend domain
-    : ['http://localhost:3000', 'http://localhost:5000'], // Local development domains
+  origin:['https://smwoks-1.onrender.com','http://localhost:3000'], // Add your frontend domain
   credentials: true,
 
 }));

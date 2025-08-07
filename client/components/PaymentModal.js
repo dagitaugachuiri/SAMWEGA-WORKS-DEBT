@@ -1,14 +1,14 @@
-// import { useState } from 'react';
-// import { X } from 'lucide-react';
+import { useState } from 'react';
+import { X } from 'lucide-react';
 
 export default function PaymentModal({ debt, onClose, onSuccess }) {
-  // const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    // setLoading(true);
+    setLoading(true);
     setTimeout(() => {
-      // setLoading(false);
+      setLoading(false);
       onSuccess();
     }, 1000);
   };
@@ -26,12 +26,12 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold">Process Payment</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            {/* <X className="h-5 w-5" /> */}
+            <X className="h-5 w-5" />
           </button>
         </div>
         
         <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-          <p className="text-sm text-gray-600">Debt #{debt.sixDigitCode}</p>
+          <p className="text-sm text-gray-600">Debt #{debt.debtCode}</p>
           <p className="font-medium">{debt.storeOwner.name}</p>
           <p className="text-sm text-gray-600">Outstanding: {formatCurrency(debt.remainingAmount || debt.amount)}</p>
         </div>
@@ -75,7 +75,7 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
             </button>
             <button
               type="submit"
-              // disabled={loading}
+              disabled={loading}
               className="btn-success flex-1"
             >
               {loading ? 'Processing...' : 'Process Payment'}

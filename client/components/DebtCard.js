@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CreditCard, MapPin, User, Calendar, DollarSign, MessageSquare, Send, AlertTriangle } from 'lucide-react';
+import { CreditCard, MapPin, User, Calendar, DollarSign, MessageSquare, Send, AlertTriangle, Car } from 'lucide-react';
 import { apiService } from '../lib/api';
 import { toast } from 'react-hot-toast';
 
@@ -61,7 +61,7 @@ export default function DebtCard({ debt, onPaymentClick, onRefresh, onCardClick 
 
   const handleResendInvoiceSMS = async () => {
     try {
-      setShowResendModal(false); // Close modal first
+      setShowResendModal(false);
       const response = await apiService.debts.resendInvoiceSMS(debt.id);
       if (response.data.success) {
         toast.success('Invoice SMS resent successfully!');
@@ -101,10 +101,18 @@ export default function DebtCard({ debt, onPaymentClick, onRefresh, onCardClick 
         </div>
 
         {/* Store Info */}
-        <div className="flex items-center space-x-2 mb-3">
+        <div className="flex items-center space-x-2 mb-2">
           <MapPin className="h-4 w-4 text-gray-400" />
           <span className="text-sm text-gray-600">
             {debt.store.name}, {debt.store.location}
+          </span>
+        </div>
+
+        {/* Vehicle Plate */}
+        <div className="flex items-center space-x-2 mb-3">
+          <Car className="h-4 w-4 text-gray-400" />
+          <span className="text-sm text-gray-600">
+            Vehicle: {debt.vehiclePlate || 'N/A'}
           </span>
         </div>
 
@@ -144,7 +152,7 @@ export default function DebtCard({ debt, onPaymentClick, onRefresh, onCardClick 
 
         {/* Actions */}
         {debt.status !== 'paid' && (
-          <div className="flexgap-2">
+          <div>
             {!debt.manualPaymentRequested ? (
               <>
                 <button
@@ -187,7 +195,6 @@ export default function DebtCard({ debt, onPaymentClick, onRefresh, onCardClick 
             setShowResendModal(false);
           }}
         >
-          
           <div 
             className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl"
             onClick={e => e.stopPropagation()}

@@ -16,7 +16,8 @@ import {
   Clock,
   Settings,
   TestTube,
-  Send
+  Send,
+  FileText
 } from 'lucide-react';
 import { Tooltip } from 'react-tooltip';
 import DebtCard from '../components/DebtCard';
@@ -31,8 +32,8 @@ export default function Dashboard() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showTestModal, setShowTestModal] = useState(false);
-  const [selectedDebt, setSelectedDebt] = useState(null); // New state for detailed view
-  const [showDetailModal, setShowDetailModal] = useState(false); // New state for modal
+  const [selectedDebt, setSelectedDebt] = useState(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const { user } = useAuth();
   const router = useRouter();
 
@@ -94,13 +95,11 @@ export default function Dashboard() {
     debt.store.location.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Calculate statistics
   const stats = {
     total: debts.length,
-    pending: debts.filter(d => d.status === 'pending').length,
+    totalIssued: debts.reduce((sum, debt) => sum + debt.amount, 0),
     paid: debts.filter(d => d.status === 'paid').length,
-    partiallyPaid: debts.filter(d => d.status === 'partially_paid').length,
-    overdue: debts.filter(d => d.status === 'overdue').length,
-    totalAmount: debts.reduce((sum, debt) => sum + debt.amount, 0),
     totalPaid: debts.reduce((sum, debt) => sum + (debt.paidAmount || 0), 0),
     totalOutstanding: debts.reduce((sum, debt) => sum + (debt.remainingAmount || 0), 0)
   };
@@ -111,10 +110,12 @@ export default function Dashboard() {
       currency: 'KES'
     }).format(amount);
   };
- const formatTimestamp = (timestamp) => {
+
+  const formatTimestamp = (timestamp) => {
     const date = new Date(timestamp * 1000);
     return isNaN(date.getTime()) ? 'Invalid Date' : date.toLocaleDateString('en-GB');
   };
+
   const handlePaymentClick = (debt) => {
     setSelectedDebt(debt);
     setShowPaymentModal(true);
@@ -132,6 +133,10 @@ export default function Dashboard() {
     setShowDetailModal(true);
   };
 
+  const handleReportsClick = () => {
+    router.push('/reports');
+  };
+
   if (!user) {
     return null;
   }
@@ -139,7 +144,7 @@ export default function Dashboard() {
   return (
     <Layout>
       <div className="min-h-screen bg-gray-50">
-        {/* Header */}
+        {/* Header section with Reports button */}
         <header className="bg-white shadow-sm border-b border-gray-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
@@ -150,14 +155,14 @@ export default function Dashboard() {
               </div>
               
               <div className="flex items-center space-x-4">
-                {/* <button
-                  data-tooltip-id="test-tooltip"
-                  onClick={() => setShowTestModal(true)}
+                <button
+                  data-tooltip-id="reports-tooltip"
+                  onClick={handleReportsClick}
                   className="btn-secondary flex items-center space-x-2"
                 >
-                  <TestTube className="h-4 w-4" />
-                  <span>Test System</span>
-                </button> */}
+                  <FileText className="h-4 w-4" />
+                  <span>Reports</span>
+                </button>
                 
                 <div className="text-sm text-gray-600">
                   {user.email}
@@ -175,11 +180,9 @@ export default function Dashboard() {
             </div>
           </div>
         </header>
-
-        {/* Main Content */}
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* Statistics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <main className="p-8">
+          {/* Statistics Cards - Replace Total Issued with Total Paid Amount */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 p-1 gap-6 mb-8">
             <div className="card" data-tooltip-id="total-debts-tooltip">
               <div className="flex items-center">
                 <div className="p-2 bg-primary-100 rounded-lg">
@@ -192,17 +195,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="card" data-tooltip-id="pending-debts-tooltip">
-              <div className="flex items-center">
-                <div className="p-2 bg-warning-100 rounded-lg">
-                  <Clock className="h-6 w-6 text-warning-600" />
-                </div>
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Pending</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.pending}</p>
-                </div>
-              </div>
-            </div>
+        
 
             <div className="card" data-tooltip-id="paid-debts-tooltip">
               <div className="flex items-center">
@@ -225,6 +218,19 @@ export default function Dashboard() {
                   <p className="text-sm font-medium text-gray-600">Outstanding</p>
                   <p className="text-xl font-bold text-gray-900">
                     {formatCurrency(stats.totalOutstanding)}
+                  </p>
+                </div>
+              </div>
+            </div>
+                <div className="card" data-tooltip-id="total-paid-tooltip">
+              <div className="flex items-center">
+                <div className="p-2 bg-success-100 rounded-lg">
+                  <CheckCircle className="h-6 w-6 text-success-600" />
+                </div>
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Total Paid Amount</p>
+                  <p className="text-xl font-bold text-gray-900">
+                    {formatCurrency(stats.totalPaid)}
                   </p>
                 </div>
               </div>
@@ -320,7 +326,7 @@ export default function Dashboard() {
             </div>
           )}
         </main>
-
+</div>
         {/* Payment Modal */}
         {showPaymentModal && selectedDebt && (
           <PaymentModal
@@ -341,7 +347,7 @@ export default function Dashboard() {
         )}
 
         {/* Detail Modal */}
-       {showDetailModal && selectedDebt && (
+        {showDetailModal && selectedDebt && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 w-full max-w-3xl shadow-2xl overflow-y-auto">
               <div className="flex justify-between items-center mb-6">
@@ -439,12 +445,12 @@ export default function Dashboard() {
           Jumla ya Madeni: {stats.total} madeni
         </Tooltip>
         <Tooltip 
-          id="pending-debts-tooltip" 
+          id="total-paid-tooltip" 
           place="top"
           effect="solid"
           style={{ backgroundColor: '#333', color: '#fff', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' }}
         >
-          Madeni Yanayosubiri: {stats.pending} madeni
+          Jumla ya Malipo Yaliyofanywa: {formatCurrency(stats.totalPaid)}
         </Tooltip>
         <Tooltip 
           id="paid-debts-tooltip" 
@@ -510,7 +516,14 @@ export default function Dashboard() {
         >
           Toka
         </Tooltip>
-      </div>
-    </Layout>
-  );
+        <Tooltip 
+          id="reports-tooltip" 
+          place="top"
+          effect="solid"
+          style={{ backgroundColor: '#333', color: '#fff', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' }}
+        >
+          View Reports
+        </Tooltip>
+      </Layout>
+    );
 }

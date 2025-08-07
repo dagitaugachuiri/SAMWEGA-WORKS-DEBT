@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { apiService } from '../lib/api';
 import { toast } from 'react-hot-toast';
@@ -6,6 +6,10 @@ import { toast } from 'react-hot-toast';
 export default function CreateDebtModal({ onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [vehicles, setVehicles] = useState(["KDK 123M"]); // Add state for vehicles
+
+  // Fetch vehicles when component mounts
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -21,6 +25,7 @@ export default function CreateDebtModal({ onClose, onSuccess }) {
           phoneNumber: formData.get('phoneNumber'),
           email: formData.get('email') || '',
         },
+        vehiclePlate: formData.get('vehiclePlate'), // Add vehicle plate
         store: {
           name: formData.get('storeName'),
           location: formData.get('location'),
@@ -85,6 +90,9 @@ export default function CreateDebtModal({ onClose, onSuccess }) {
         
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
+            {/* Add Vehicle Plate selection before store details */}
+          
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Store Owner Name
@@ -209,7 +217,23 @@ export default function CreateDebtModal({ onClose, onSuccess }) {
                 <option value="cheque">Cheque</option>
               </select>
             </div>
-            
+              <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Vehicle Plate Number *
+              </label>
+              <select 
+                name="vehiclePlate"
+                required
+                className="select-field"
+              >
+                <option value="">Select vehicle</option>
+                {vehicles.map((vehicle) => (
+                  <option key={vehicle.id} value={vehicle.plateNumber}>
+                    {vehicle.plateNumber} - {vehicle.model}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Description (Optional)

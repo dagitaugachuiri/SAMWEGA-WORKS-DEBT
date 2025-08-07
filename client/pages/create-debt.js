@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { ArrowLeft, AlertTriangle, MessageSquare, Plus, Info } from 'lucide-react';
 import { apiService } from '../lib/api';
@@ -11,6 +11,25 @@ export default function CreateDebt() {
   const [error, setError] = useState(null);
   const router = useRouter();
   const { user } = useAuth();
+  const [vehicles, setVehicles] = useState([
+    { id: 1, plateNumber: "KDK 123M", model: "Gitau" },
+    { id: 2, plateNumber: "KCA 456N", model: "Hiuhu" }
+  ]);
+
+  useEffect(() => {
+    // Simulate fetching vehicles from API
+    const fetchVehicles = async () => {
+      try {
+        // Replace with actual API call when available
+        // const response = await apiService.vehicles.getAll();
+        // setVehicles(response.data);
+      } catch (err) {
+        console.error('Failed to fetch vehicles:', err);
+        toast.error('Failed to load vehicle data');
+      }
+    };
+    fetchVehicles();
+  }, []);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -26,6 +45,7 @@ export default function CreateDebt() {
           phoneNumber: formData.get('phoneNumber'),
           email: formData.get('email') || '',
         },
+        vehiclePlate: formData.get('vehiclePlate'),
         store: {
           name: formData.get('storeName'),
           location: formData.get('location'),
@@ -48,6 +68,11 @@ export default function CreateDebt() {
       }
       if (new Date(debtData.dueDate) < new Date(debtData.dateIssued)) {
         throw new Error('Due date must be on or after date issued');
+      }
+
+      // Validate vehicle plate
+      if (!debtData.vehiclePlate) {
+        throw new Error('Vehicle plate number is required');
       }
 
       // Log request body for debugging
@@ -122,6 +147,7 @@ export default function CreateDebt() {
                   </p>
                   <ul className="mt-2 list-disc list-inside space-y-1">
                     <li>Debt amount and reference code</li>
+                    <li>Vehicle plate number</li>
                     <li>Payment instructions (M-Pesa, Bank, or Cheque details)</li>
                     <li>Due date and contact information</li>
                   </ul>
@@ -140,10 +166,10 @@ export default function CreateDebt() {
                 Debt Information
               </h2>
               <p className="mt-1 text-sm text-gray-500">
-                Enter the debtor's details and debt information below.
+                Enter the debtor's details, vehicle information, and debt information below.
               </p>
               <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
-                Provide details about the debtor and the debt to create a new record
+                Provide details about the debtor, vehicle, and debt to create a new record
               </div>
             </div>
 
@@ -160,8 +186,9 @@ export default function CreateDebt() {
               )}
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Store Owner Information */}
+                {/* Left Column: Store Owner and Vehicle Information */}
                 <div className="space-y-6">
+                  {/* Store Owner Information */}
                   <div>
                     <h3 className="text-base font-medium text-gray-900 mb-4 relative group">
                       Store Owner Information
@@ -228,6 +255,58 @@ export default function CreateDebt() {
                     </div>
                   </div>
 
+                  {/* Vehicle Information */}
+                  <div>
+                    <h3 className="text-base font-medium text-gray-900 mb-4 relative group">
+                      Vehicle Information
+                      <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
+                        Select the vehicle associated with the debt
+                      </div>
+                    </h3>
+                    
+                    <div className="relative group">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Vehicle Plate Number *
+                      </label>
+                      <select
+                        name="vehiclePlate"
+                        required
+                        className="select-field"
+                      >
+                        <option value="">Select vehicle</option>
+                        {vehicles.map((vehicle) => (
+                          <option key={vehicle.id} value={vehicle.plateNumber}>
+                            {vehicle.plateNumber} - {vehicle.model}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
+                        Select the vehicle by plate number and model
+                      </div>
+                    </div>
+                     
+                      <div className="relative mt-4 group">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Payment Method *
+                        </label>
+                        <select name="paymentMethod" required className="select-field">
+                          <option value="">Select payment method</option>
+                          <option value="mpesa">M-Pesa</option>
+                          <option value="bank">Bank Transfer</option>
+                          <option value="cheque">Cheque</option>
+                        </select>
+                        <p className="mt-1 text-xs text-gray-500">
+                          SMS will include specific instructions for the selected method
+                        </p>
+                        <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
+                          Choose how the debtor will pay (M-Pesa, Bank, or Cheque)
+                        </div>
+                      </div>
+                  </div>
+                </div>
+
+                {/* Right Column: Store and Debt Details */}
+                <div className="space-y-6">
                   {/* Store Information */}
                   <div>
                     <h3 className="text-base font-medium text-gray-900 mb-4 relative group">
@@ -275,10 +354,8 @@ export default function CreateDebt() {
                       </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Debt Details */}
-                <div className="space-y-6">
+                  {/* Debt Details */}
                   <div>
                     <h3 className="text-base font-medium text-gray-900 mb-4 relative group">
                       Debt Details
@@ -339,24 +416,7 @@ export default function CreateDebt() {
                           Select the due date for debt repayment (on or after today)
                         </div>
                       </div>
-                      
-                      <div className="relative group">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Payment Method *
-                        </label>
-                        <select name="paymentMethod" required className="select-field">
-                          <option value="">Select payment method</option>
-                          <option value="mpesa">M-Pesa</option>
-                          <option value="bank">Bank Transfer</option>
-                          <option value="cheque">Cheque</option>
-                        </select>
-                        <p className="mt-1 text-xs text-gray-500">
-                          SMS will include specific instructions for the selected method
-                        </p>
-                        <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
-                          Choose how the debtor will pay (M-Pesa, Bank, or Cheque)
-                        </div>
-                      </div>
+                     
                       
                       <div className="relative group">
                         <label className="block text-sm font-medium text-gray-700 mb-1">

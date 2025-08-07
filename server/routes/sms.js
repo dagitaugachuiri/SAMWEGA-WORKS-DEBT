@@ -60,43 +60,48 @@ router.post('/mpesa', async (req, res) => {
 });
 
 // POST endpoint to receive M-Pesa SMS webhook (alternative version)
+// POST endpoint to receive M-Pesa SMS webhook
 router.post('/webhook', async (req, res) => {
   try {
-    console.log('📥 Received SMS webhook:', req.body);
+    console.log('📥 Received SMS webhook:', JSON.stringify(req.body, null, 2));
 
-    // Extract message from webhook payload
+    // Extract webhook data
     const webhookData = req.body;
-    if (!webhookData || !webhookData.key) {
-      throw new Error('No SMS message provided in request body');
+
+    // Validate webhook data
+    if (!webhookData || !webhookData.body) {
+      console.error('❌ No SMS message provided in request body');
+      return res.status(400).json(createErrorResponse(400, 'SMS message is required', { receivedBody: req.body }));
     }
 
-    // Process the SMS
-    const smsProcessor = require('../services/smsProcessor');
-    const parsedSMS = await smsProcessor.parseMpesaSMS(webhookData);
+    // Parse the SMS using smsProcessor
+    const parsedSMS = smsProcessor.parseMpesaSMS(webhookData);
 
     if (!parsedSMS.success) {
       console.warn('⚠️ Failed to parse SMS:', parsedSMS.error);
-      return res.status(400).json(parsedSMS);
+      return res.status(400).json(createErrorResponse(400, 'Invalid SMS message format', { error: parsedSMS.error }, webhookData.body));
     }
 
     // Process payment if SMS was parsed successfully
     const paymentResult = await smsProcessor.processSMSPayment(parsedSMS.data);
 
-    res.json({
+    if (!paymentResult.success) {
+      console.error('❌ Failed to process SMS payment:', paymentResult.error);
+      return res.status(400).json(createErrorResponse(400, 'Payment processing failed', { error: paymentResult.error, accountNumber: paymentResult.accountNumber }));
+    }
+
+    console.log('✅ Webhook processed successfully:', JSON.stringify(paymentResult, null, 2));
+    res.status(200).json({
       success: true,
       message: 'Webhook processed successfully',
       payment: paymentResult
     });
 
   } catch (error) {
-    console.error('❌ Webhook error:', error);
-    res.status(400).json({
-      success: false,
-      error: error.message
-    });
+    console.error('❌ Webhook error:', error.message, error.stack);
+    res.status(500).json(createErrorResponse(500, 'Internal server error', { stack: error.stack }, req.body));
   }
 });
-
 // GET endpoint to test SMS parsing (for development/testing)
 router.get('/test-parse', authenticate, async (req, res) => {
   try {

@@ -75,7 +75,7 @@ router.post('/webhook', async (req, res) => {
     }
 
     // Parse the SMS using smsProcessor
-    const parsedSMS = smsProcessor.parseMpesaSMS(webhookData);
+const parsedSMS = smsProcessor.parseMpesaWebhook(webhookData);
 
     if (!parsedSMS.success) {
       console.warn('⚠️ Failed to parse SMS:', parsedSMS.error);

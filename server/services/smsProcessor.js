@@ -36,12 +36,29 @@ class SMSProcessor {
           datetime: /on (\d{4}-\d{2}-\d{2}) at (\d{1,2}:\d{2} (?:AM|PM))/,
           paybill: /Paybill (\d+)/,
           senderName: /from ([A-Z\s]+) \d{12}/
+        },
+        // New payment sent format (like the one in your log)
+        paymentSent: {
+          transactionId: /^([A-Z0-9]+)/,
+          amount: /Ksh([\d,]+\.?\d*)/,
+          accountNumber: /for account (\d+)/,
+          datetime: /on (\d{1,2}\/\d{1,2}\/\d{2}) at (\d{1,2}:\d{2} (?:AM|PM))/,
+          balance: /New M-PESA balance is Ksh([\d,]+\.?\d*)/,
+          cost: /Transaction cost, Ksh([\d,]+\.?\d*)/
         }
       };
 
       // Determine message type
       const isBalanceMessage = smsMessage.includes('Your account balance was');
-      const messageType = isBalanceMessage ? 'balance' : 'payment';
+      const isPaymentSent = smsMessage.includes('sent to') && smsMessage.includes('for account');
+      
+      let messageType = 'payment'; // default
+      if (isBalanceMessage) {
+        messageType = 'balance';
+      } else if (isPaymentSent) {
+        messageType = 'paymentSent';
+      }
+
       const pattern = patterns[messageType];
 
       if (messageType === 'balance') {
@@ -72,6 +89,46 @@ class SMSProcessor {
         };
 
         console.log('Parsed balance SMS data:', parsedData);
+        return {
+          success: true,
+          data: parsedData
+        };
+      } else if (messageType === 'paymentSent') {
+        // Parse payment sent message (like LGR5TY6X format)
+        const transactionIdMatch = smsMessage.match(pattern.transactionId);
+        const amountMatch = smsMessage.match(pattern.amount);
+        const accountMatch = smsMessage.match(pattern.accountNumber);
+        const dateTimeMatch = smsMessage.match(pattern.datetime);
+        const balanceMatch = smsMessage.match(pattern.balance);
+        const costMatch = smsMessage.match(pattern.cost);
+
+        let transactionDate = null;
+        if (dateTimeMatch) {
+          const [_, date, time] = dateTimeMatch;
+          // Convert date from DD/MM/YY to YYYY-MM-DD
+          const [day, month, year] = date.split('/');
+          const fullYear = year.length === 2 ? `20${year}` : year;
+          transactionDate = new Date(`${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')} ${time}`);
+        }
+
+        const parsedData = {
+          messageType: 'paymentSent',
+          transactionId: transactionIdMatch ? transactionIdMatch[1] : null,
+          amount: amountMatch ? parseFloat(amountMatch[1].replace(/,/g, '')) : null,
+          accountNumber: accountMatch ? accountMatch[1] : null,
+          transactionDate,
+          currentBalance: balanceMatch ? parseFloat(balanceMatch[1].replace(/,/g, '')) : null,
+          transactionCost: costMatch ? parseFloat(costMatch[1].replace(/,/g, '')) : null,
+          originalMessage: smsMessage
+        };
+
+        console.log('Parsed payment sent SMS data:', parsedData);
+
+        // Validate required fields
+        if (!parsedData.amount || !parsedData.accountNumber) {
+          throw new Error('Missing required fields: amount or account number');
+        }
+
         return {
           success: true,
           data: parsedData
@@ -112,6 +169,7 @@ class SMSProcessor {
         const senderName = senderMatch ? senderMatch[1].trim() : null;
 
         const parsedData = {
+          messageType: 'payment',
           transactionId,
           amount,
           accountNumber,
@@ -141,6 +199,42 @@ class SMSProcessor {
         success: false,
         error: error.message,
         originalMessage: smsMessage
+      };
+    }
+  }
+
+  // Parse M-Pesa webhook data to extract payment details
+  parseMpesaWebhook(webhookData) {
+    try {
+      console.log('Received webhook data:', webhookData);
+
+      // Extract message body from webhook object
+      const rawMessage = webhookData?.from && webhookData?.body ? webhookData.body : null;
+
+      // Check if rawMessage exists
+      if (!rawMessage || typeof rawMessage !== 'string') {
+        throw new Error('No SMS message provided in request body or invalid format');
+      }
+
+      // Clean the message (remove leading/trailing whitespace and any specific prefixes)
+      const smsMessage = rawMessage.replace(/^From\s*:\s*MPESA\(\)\n?/, '').trim();
+
+      console.log('Extracted SMS message:', smsMessage);
+
+      // Handle empty or invalid message
+      if (!smsMessage) {
+        throw new Error('Empty SMS message after processing');
+      }
+
+      // Use the existing parseMpesaSMS logic for consistency
+      return this.parseMpesaSMS(smsMessage);
+
+    } catch (error) {
+      console.error('Error parsing webhook SMS message:', error);
+      return {
+        success: false,
+        error: error.message,
+        originalMessage: webhookData?.body || null
       };
     }
   }
@@ -492,44 +586,6 @@ class SMSProcessor {
       };
     }
   }
-
-  // Parse M-Pesa webhook data to extract payment details
-// Parse M-Pesa webhook data to extract payment details
-parseMpesaSMS(webhookData) {
-  try {
-    console.log('Received webhook data:', webhookData);
-
-    // Extract message body from webhook object
-    const rawMessage = webhookData?.from && webhookData?.body ? webhookData.body : null;
-
-    // Check if rawMessage exists
-    if (!rawMessage || typeof rawMessage !== 'string') {
-      throw new Error('No SMS message provided in request body or invalid format');
-    }
-
-    // Clean the message (remove leading/trailing whitespace and any specific prefixes)
-    const smsMessage = rawMessage.replace(/^From\s*:\s*MPESA\(\)\n?/, '').trim();
-
-    console.log('Extracted SMS message:', smsMessage);
-
-    // Handle empty or invalid message
-    if (!smsMessage) {
-      throw new Error('Empty SMS message after processing');
-    }
-
-    // Use the existing parseMpesaSMS logic for consistency
-    // Call the existing parseMpesaSMS method to handle both payment and balance messages
-    return this.parseMpesaSMS(smsMessage);
-
-  } catch (error) {
-    console.error('Error parsing webhook SMS message:', error);
-    return {
-      success: false,
-      error: error.message,
-      originalMessage: webhookData?.body || null
-    };
-  }
-}
 }
 
 module.exports = new SMSProcessor();

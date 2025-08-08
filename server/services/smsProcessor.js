@@ -495,25 +495,20 @@ class SMSProcessor {
 
   // Parse M-Pesa webhook data to extract payment details
 // Parse M-Pesa webhook data to extract payment details
-// Parse M-Pesa webhook data to extract payment details
 parseMpesaSMS(webhookData) {
   try {
     console.log('Received webhook data:', webhookData);
 
-    // Determine if webhookData is a string (direct SMS message) or an object
-    let smsMessage;
-    if (typeof webhookData === 'string') {
-      // Direct SMS message
-      smsMessage = webhookData.trim();
-    } else {
-      // Webhook object with from and body
-      const rawMessage = webhookData?.from && webhookData?.body ? webhookData.body : null;
-      if (!rawMessage || typeof rawMessage !== 'string') {
-        throw new Error('No SMS message provided in request body or invalid format');
-      }
-      // Clean the message (remove leading/trailing whitespace and any specific prefixes)
-      smsMessage = rawMessage.replace(/^From\s*:\s*MPESA\(\)\n?/, '').trim();
+    // Extract message body from webhook object
+    const rawMessage = webhookData?.from && webhookData?.body ? webhookData.body : null;
+
+    // Check if rawMessage exists
+    if (!rawMessage || typeof rawMessage !== 'string') {
+      throw new Error('No SMS message provided in request body or invalid format');
     }
+
+    // Clean the message (remove leading/trailing whitespace and any specific prefixes)
+    const smsMessage = rawMessage.replace(/^From\s*:\s*MPESA\(\)\n?/, '').trim();
 
     console.log('Extracted SMS message:', smsMessage);
 
@@ -522,7 +517,8 @@ parseMpesaSMS(webhookData) {
       throw new Error('Empty SMS message after processing');
     }
 
-    // Use the existing parseMpesaSMS logic for parsing the SMS string
+    // Use the existing parseMpesaSMS logic for consistency
+    // Call the existing parseMpesaSMS method to handle both payment and balance messages
     return this.parseMpesaSMS(smsMessage);
 
   } catch (error) {
@@ -530,7 +526,7 @@ parseMpesaSMS(webhookData) {
     return {
       success: false,
       error: error.message,
-      originalMessage: typeof webhookData === 'string' ? webhookData : webhookData?.body || null
+      originalMessage: webhookData?.body || null
     };
   }
 }

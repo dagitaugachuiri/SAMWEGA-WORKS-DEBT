@@ -249,8 +249,8 @@ router.post('/:id/payment', authenticate, validate(schemas.payment), async (req,
       manualPaymentRequested: false, // Reset the request flag
     });
 
-    // Log the payment
-    await addDoc(collection(db, 'payment_logs'), {
+    // Log the payment with only relevant fields
+    const paymentLogData = {
       debtId: id,
       amount: amount,
       paymentMethod: paymentMethod,
@@ -260,10 +260,18 @@ router.post('/:id/payment', authenticate, validate(schemas.payment), async (req,
       accountNumber: debt.debtCode,
       processedAt: new Date(),
       manualProcessed: true,
-      chequeNumber,
-      bankName,
-      chequeDate
-    });
+    };
+
+    // Conditionally add fields based on payment method
+    if (paymentMethod === 'cheque') {
+      paymentLogData.chequeNumber = chequeNumber;
+      paymentLogData.bankName = bankName;
+      paymentLogData.chequeDate = chequeDate;
+    } else if (paymentMethod === 'bank') {
+      paymentLogData.bankName = bankName;
+    }
+
+    await addDoc(collection(db, 'payment_logs'), paymentLogData);
 
     // Send SMS confirmation to store owner
     const confirmationMessage = smsService.generatePaymentConfirmationSMS(debt, amount);

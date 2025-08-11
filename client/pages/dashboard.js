@@ -17,7 +17,9 @@ import {
   Settings,
   TestTube,
   Send,
-  FileText
+  FileText,
+  Car,
+  Calendar
 } from 'lucide-react';
 import { Tooltip } from 'react-tooltip';
 import DebtCard from '../components/DebtCard';
@@ -30,6 +32,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [vehiclePlateFilter, setVehiclePlateFilter] = useState(''); // Updated state for vehicle plate filter
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showTestModal, setShowTestModal] = useState(false);
   const [selectedDebt, setSelectedDebt] = useState(null);
@@ -88,20 +92,40 @@ export default function Dashboard() {
     }
   };
 
-  const filteredDebts = debts.filter(debt => 
-    debt.storeOwner.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    debt.store.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (debt.debtCode || debt.sixDigitCode || '').includes(searchTerm) ||
-    debt.store.location.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredDebts = debts.filter(debt => {
+    // Search term filter
+    const matchesSearch = (
+      debt.storeOwner.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      debt.store.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (debt.debtCode || debt.sixDigitCode || '').includes(searchTerm) ||
+      debt.store.location.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
-  // Calculate statistics
+    // Vehicle plate filter
+    const matchesVehiclePlate = vehiclePlateFilter
+      ? debt.vehiclePlate?.toLowerCase().includes(vehiclePlateFilter.toLowerCase())
+      : true;
+
+    // Date range filter (based on createdAt)
+    const matchesDate = dateRange.start && dateRange.end
+      ? (() => {
+          const startDate = new Date(dateRange.start).getTime() / 1000;
+          const endDate = new Date(dateRange.end).getTime() / 1000;
+          const debtDate = debt.createdAt?.seconds || 0;
+          return debtDate >= startDate && debtDate <= endDate;
+        })()
+      : true;
+
+    return matchesSearch && matchesVehiclePlate && matchesDate;
+  });
+
+  // Calculate statistics based on filtered debts
   const stats = {
-    total: debts.length,
-    totalIssued: debts.reduce((sum, debt) => sum + debt.amount, 0),
-    paid: debts.filter(d => d.status === 'paid').length,
-    totalPaid: debts.reduce((sum, debt) => sum + (debt.paidAmount || 0), 0),
-    totalOutstanding: debts.reduce((sum, debt) => sum + (debt.remainingAmount || 0), 0)
+    total: filteredDebts.length,
+    totalIssued: filteredDebts.reduce((sum, debt) => sum + debt.amount, 0),
+    paid: filteredDebts.filter(d => d.status === 'paid').length,
+    totalPaid: filteredDebts.reduce((sum, debt) => sum + (debt.paidAmount || 0), 0),
+    totalOutstanding: filteredDebts.reduce((sum, debt) => sum + (debt.remainingAmount || 0), 0)
   };
 
   const formatCurrency = (amount) => {
@@ -181,7 +205,7 @@ export default function Dashboard() {
           </div>
         </header>
         <main className="p-8">
-          {/* Statistics Cards - Replace Total Issued with Total Paid Amount */}
+          {/* Statistics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 p-1 gap-6 mb-8">
             <div className="card" data-tooltip-id="total-debts-tooltip">
               <div className="flex items-center">
@@ -194,8 +218,6 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
-
-        
 
             <div className="card" data-tooltip-id="paid-debts-tooltip">
               <div className="flex items-center">
@@ -222,7 +244,7 @@ export default function Dashboard() {
                 </div>
               </div>
             </div>
-                <div className="card" data-tooltip-id="total-paid-tooltip">
+            <div className="card" data-tooltip-id="total-paid-tooltip">
               <div className="flex items-center">
                 <div className="p-2 bg-success-100 rounded-lg">
                   <CheckCircle className="h-6 w-6 text-success-600" />
@@ -252,7 +274,7 @@ export default function Dashboard() {
                 />
               </div>
 
-              {/* Filter */}
+              {/* Status Filter */}
               <div className="relative" data-tooltip-id="filter-tooltip">
                 <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <select
@@ -261,11 +283,46 @@ export default function Dashboard() {
                   onChange={(e) => setStatusFilter(e.target.value)}
                 >
                   <option value="all">All Status</option>
-                  <option value="pending">Pending</option>
+                  <option value="pending">Waiting Payment</option>
                   <option value="paid">Paid</option>
                   <option value="partially_paid">Partially Paid</option>
                   <option value="overdue">Overdue</option>
                 </select>
+              </div>
+
+              {/* Vehicle Plate Filter */}
+              <div className="relative flex-1 max-w-md" data-tooltip-id="vehicle-plate-filter-tooltip">
+                <Car className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Filter by vehicle plate number"
+                  className="input-field pl-10"
+                  value={vehiclePlateFilter}
+                  onChange={(e) => setVehiclePlateFilter(e.target.value)}
+                />
+              </div>
+
+              {/* Date Range Filter */}
+              <div className="flex gap-2 items-center" data-tooltip-id="date-filter-tooltip">
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="date"
+                    className="input-field pl-10"
+                    value={dateRange.start}
+                    onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                  />
+                </div>
+                <span className="text-gray-500">to</span>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <input
+                    type="date"
+                    className="input-field pl-10"
+                    value={dateRange.end}
+                    onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                  />
+                </div>
               </div>
             </div>
 
@@ -294,12 +351,12 @@ export default function Dashboard() {
               <CreditCard className="mx-auto h-12 w-12 text-gray-400" />
               <h3 className="mt-2 text-sm font-medium text-gray-900">No debts found</h3>
               <p className="mt-1 text-sm text-gray-500">
-                {searchTerm || statusFilter !== 'all' 
-                  ? 'Try adjusting your search or filter.' 
+                {searchTerm || statusFilter !== 'all' || vehiclePlateFilter || dateRange.start || dateRange.end
+                  ? 'Try adjusting your search or filters.'
                   : 'Get started by creating a new debt record.'
                 }
               </p>
-              {!searchTerm && statusFilter === 'all' && (
+              {!searchTerm && statusFilter === 'all' && !vehiclePlateFilter && !dateRange.start && !dateRange.end && (
                 <div className="mt-6">
                   <button
                     data-tooltip-id="create-first-debt-tooltip"
@@ -347,7 +404,7 @@ export default function Dashboard() {
         )}
 
         {/* Detail Modal */}
-        {showDetailModal && selectedDebt && (
+        {showDetailModal && !selectedDebt && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 w-full max-w-3xl shadow-2xl overflow-y-auto">
               <div className="flex justify-between items-center mb-6">
@@ -401,6 +458,16 @@ export default function Dashboard() {
                     <p><strong>Phone:</strong> {selectedDebt.storeOwner.phoneNumber}</p>
                   </div>
                 </div>
+
+                {/* Vehicle Info Section */}
+                {selectedDebt.vehiclePlate && (
+                  <div className="bg-gray-50 p-4 rounded-lg md:col-span-2">
+                    <h3 className="font-semibold text-lg mb-3 text-gray-700">Vehicle Information</h3>
+                    <div className="space-y-2 text-sm">
+                      <p><strong>Plate Number:</strong> {selectedDebt.vehiclePlate || 'N/A'}</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Actions Section */}
@@ -435,7 +502,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Tooltip Component */}
+        {/* Tooltip Components */}
         <Tooltip 
           id="total-debts-tooltip" 
           place="top"
@@ -483,6 +550,22 @@ export default function Dashboard() {
           style={{ backgroundColor: '#333', color: '#fff', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' }}
         >
           Chagua Hali ya Madeni
+        </Tooltip>
+        <Tooltip 
+          id="vehicle-plate-filter-tooltip" 
+          place="top"
+          effect="solid"
+          style={{ backgroundColor: '#333', color: '#fff', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' }}
+        >
+          Chuja kwa Namba ya Pasi ya Gari
+        </Tooltip>
+        <Tooltip 
+          id="date-filter-tooltip" 
+          place="top"
+          effect="solid"
+          style={{ backgroundColor: '#333', color: '#fff', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' }}
+        >
+          Chuja kwa Tarehe
         </Tooltip>
         <Tooltip 
           id="create-debt-tooltip" 

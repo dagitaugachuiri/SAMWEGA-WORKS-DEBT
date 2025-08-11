@@ -33,12 +33,12 @@ const debtSchema = Joi.object({
 // Payment processing validation schema
 const paymentSchema = Joi.object({
   amount: Joi.number().positive().required(),
-  paymentMethod: Joi.string().valid('mpesa', 'bank', 'cheque').required(),
+  paymentMethod: Joi.string().valid('mpesa', 'bank', 'cheque','cash').required(),
   phoneNumber: Joi.when('paymentMethod', {
     is: 'mpesa',
     then: phoneSchema.required(),
     otherwise: Joi.optional()
-  }),
+  }), 
   chequeNumber: Joi.when('paymentMethod', {
     is: 'cheque',
     then: Joi.string().required(),

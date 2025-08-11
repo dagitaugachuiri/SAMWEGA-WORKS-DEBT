@@ -21,13 +21,13 @@ export default function DebtCard({ debt, onPaymentClick, onRefresh, onCardClick 
   const getStatusClass = (status) => {
     switch (status) {
       case 'paid':
-        return 'status-paid';
+        return 'text-green-600';
       case 'partially_paid':
-        return 'status-partially-paid';
+        return 'text-yellow-600';
       case 'overdue':
-        return 'status-overdue';
+        return 'text-red-600';
       default:
-        return 'status-pending';
+        return 'text-gray-600';
     }
   };
 
@@ -40,15 +40,15 @@ export default function DebtCard({ debt, onPaymentClick, onRefresh, onCardClick 
       case 'overdue':
         return 'Overdue';
       default:
-        return 'Pending';
+        return 'Waiting Payment';
     }
   };
 
   const handleRequestManualPayment = async () => {
     try {
-      const response = await apiService.debts.requestManualPayment(debt.id);
+      const response = await apiService.debts.requestManualPayment(debt?.id);
       if (response.data.success) {
-        toast.success('Manual payment request sent successfully!');
+        toast.success('Manual payment request sent!');
         onRefresh();
       } else {
         throw new Error(response.data.error || 'Failed to request manual payment');
@@ -62,9 +62,9 @@ export default function DebtCard({ debt, onPaymentClick, onRefresh, onCardClick 
   const handleResendInvoiceSMS = async () => {
     try {
       setShowResendModal(false);
-      const response = await apiService.debts.resendInvoiceSMS(debt.id);
+      const response = await apiService.debts.resendInvoiceSMS(debt?.id);
       if (response.data.success) {
-        toast.success('Invoice SMS resent successfully!');
+        toast.success('Invoice SMS resent!');
         onRefresh();
       } else {
         throw new Error(response.data.error || 'Failed to resend invoice SMS');
@@ -75,99 +75,79 @@ export default function DebtCard({ debt, onPaymentClick, onRefresh, onCardClick 
     }
   };
 
+  if (!debt) {
+    return <div className="border rounded-lg p-4 text-sm text-gray-600">No debt data available</div>;
+  }
+
   return (
     <>
       <div 
-        className="card hover:shadow-medium transition-shadow duration-200 cursor-pointer"
+        className="border rounded-lg p-4 hover:shadow transition-shadow cursor-pointer"
         onClick={() => onCardClick(debt)}
       >
-        {/* Header */}
-        <div className="flex justify-between items-start mb-4">
-          <div className="flex items-center space-x-2">
-            <CreditCard className="h-5 w-5 text-primary-600" />
-            <span className="font-mono text-sm font-bold text-gray-900">
-              #{debt.debtCode}
-            </span>
+        <div className="flex justify-between items-center mb-2">
+          <div className="flex items-center gap-2">
+            <CreditCard className="h-4 w-4 text-blue-600" />
+            <span className={`font-mono text-sm font-bold ${debt.status === 'paid' ? 'line-through text-gray-500' : 'text-gray-900'}`}>#{debt.debtCode || 'N/A'}</span>
           </div>
-          <span className={getStatusClass(debt.status)}>
+          <span className={`text-sm font-medium ${getStatusClass(debt.status)}`}>
             {getStatusText(debt.status)}
           </span>
         </div>
 
-        {/* Store Owner */}
-        <div className="flex items-center space-x-2 mb-2">
+        <div className="flex items-center gap-2 mb-1">
           <User className="h-4 w-4 text-gray-400" />
-          <span className="font-medium text-gray-900">{debt.storeOwner.name}</span>
+          <span className="text-sm font-medium">{debt.storeOwner?.name || 'Unknown'}</span>
         </div>
 
-        {/* Store Info */}
-        <div className="flex items-center space-x-2 mb-2">
+        <div className="flex items-center gap-2 mb-1">
           <MapPin className="h-4 w-4 text-gray-400" />
-          <span className="text-sm text-gray-600">
-            {debt.store.name}, {debt.store.location}
-          </span>
+          <span className="text-sm text-gray-600">{debt.store?.name || 'N/A'}, {debt.store?.location || 'N/A'}</span>
         </div>
 
-        {/* Vehicle Plate */}
-        <div className="flex items-center space-x-2 mb-3">
+        <div className="flex items-center gap-2 mb-2">
           <Car className="h-4 w-4 text-gray-400" />
-          <span className="text-sm text-gray-600">
-            Vehicle: {debt.vehiclePlate || 'N/A'}
-          </span>
+          <span className="text-sm text-gray-600">Vehicle: {debt.vehiclePlate || 'N/A'}</span>
         </div>
 
-        {/* Amount Info */}
-        <div className="bg-gray-50 rounded-lg p-3 mb-4">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-sm text-gray-600">Total Amount:</span>
-            <span className="font-bold text-gray-900">
-              {formatCurrency(debt.amount)}
+        <div className="bg-gray-50 rounded p-2 mb-2">
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-gray-600">Total:</span>
+            <span className={`font-bold ${debt.status === 'paid' ? 'line-through text-gray-500' : 'text-gray-900'}`}>
+              {formatCurrency(debt.amount || 0)}
             </span>
           </div>
-          
           {debt.paidAmount > 0 && (
-            <div className="flex justify-between items-center mb-2">
+            <div className="flex justify-between items-center">
               <span className="text-sm text-gray-600">Paid:</span>
-              <span className="font-medium text-success-600">
-                {formatCurrency(debt.paidAmount)}
-              </span>
+              <span className="font-medium text-green-600">{formatCurrency(debt.paidAmount)}</span>
             </div>
           )}
-          
           <div className="flex justify-between items-center">
             <span className="text-sm text-gray-600">Outstanding:</span>
-            <span className="font-bold text-danger-600">
-              {formatCurrency(debt.remainingAmount || 0)}
-            </span>
+            <span className="font-bold text-red-600">{formatCurrency(debt.remainingAmount || 0)}</span>
           </div>
         </div>
 
-        {/* Due Date */}
-        <div className="flex items-center space-x-2 mb-4">
+        <div className="flex items-center gap-2 mb-2">
           <Calendar className="h-4 w-4 text-gray-400" />
-          <span className="text-sm text-gray-600">
-            Due: {formatTimestamp(debt.dueDate.seconds)}
-          </span>
+          <span className="text-sm text-gray-600">Due: {formatTimestamp(debt.dueDate?.seconds) || 'N/A'}</span>
         </div>
 
-        {/* Actions */}
         {debt.status !== 'paid' && (
-          <div>
+          <div className="flex gap-2">
             {!debt.manualPaymentRequested ? (
               <>
                 <button
                   onClick={(e) => { e.stopPropagation(); handleRequestManualPayment(); }}
-                  className="btn-secondary flex-1 flex items-center justify-center my-4 space-x-2"
+                  className="flex-1 flex items-center justify-center gap-1 text-sm bg-gray-100 hover:bg-gray-200 rounded p-2"
                 >
                   <MessageSquare className="h-4 w-4" />
-                  <span>Request Manual Payment</span>
+                  <span>Manual Payment</span>
                 </button>
                 <button
-                  onClick={(e) => { 
-                    e.stopPropagation(); 
-                    setShowResendModal(true); 
-                  }}
-                  className="btn-success flex-1 flex items-center justify-center space-x-2"
+                  onClick={(e) => { e.stopPropagation(); setShowResendModal(true); }}
+                  className="flex-1 flex items-center justify-center gap-1 text-sm bg-green-100 hover:bg-green-200 rounded p-2"
                 >
                   <Send className="h-4 w-4" />
                   <span>Resend SMS</span>
@@ -176,7 +156,7 @@ export default function DebtCard({ debt, onPaymentClick, onRefresh, onCardClick 
             ) : (
               <button
                 onClick={(e) => { e.stopPropagation(); onPaymentClick(debt); }}
-                className="btn-primary w-full flex items-center justify-center space-x-2"
+                className="w-full flex items-center justify-center gap-1 text-sm bg-blue-100 hover:bg-blue-200 rounded p-2"
               >
                 <DollarSign className="h-4 w-4" />
                 <span>Process Payment</span>
@@ -186,39 +166,34 @@ export default function DebtCard({ debt, onPaymentClick, onRefresh, onCardClick 
         )}
       </div>
 
-      {/* Resend SMS Confirmation Modal */}
       {showResendModal && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-          onClick={(e) => {
-            e.stopPropagation();
-            setShowResendModal(false);
-          }}
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+          onClick={(e) => { e.stopPropagation(); setShowResendModal(false); }}
         >
           <div 
-            className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl"
+            className="bg-white rounded p-4 max-w-sm w-full mx-4"
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex items-center space-x-2 text-warning-600 mb-4">
-              <AlertTriangle className="h-6 w-6" />
-              <h3 className="text-lg font-semibold">Confirm Resend SMS</h3>
+            <div className="flex items-center gap-2 text-yellow-600 mb-2">
+              <AlertTriangle className="h-5 w-5" />
+              <h3 className="text-base font-semibold">Confirm Resend SMS</h3>
             </div>
             
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to resend the invoice SMS to{' '}
-              <span className="font-medium text-gray-900">{debt.storeOwner.name}</span>?
+            <p className="text-sm text-gray-600 mb-4">
+              Resend invoice SMS to <span className="font-medium">{debt.storeOwner?.name || 'Unknown'}</span>?
             </p>
 
-            <div className="flex items-center space-x-3 justify-end">
+            <div className="flex gap-2 justify-end">
               <button
                 onClick={() => setShowResendModal(false)}
-                className="btn-outline"
+                className="text-sm bg-gray-100 hover:bg-gray-200 rounded p-2"
               >
                 Cancel
               </button>
               <button
                 onClick={handleResendInvoiceSMS}
-                className="btn-success"
+                className="text-sm bg-green-100 hover:bg-green-200 rounded p-2"
               >
                 Resend SMS
               </button>

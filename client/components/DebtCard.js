@@ -2,10 +2,12 @@ import { useState } from 'react';
 import { CreditCard, MapPin, User, Calendar, DollarSign, MessageSquare, Send, AlertTriangle, Car } from 'lucide-react';
 import { apiService } from '../lib/api';
 import { toast } from 'react-hot-toast';
+import { useRouter } from 'next/router';
 
 export default function DebtCard({ debt, onPaymentClick, onRefresh, onCardClick }) {
   const [showResendModal, setShowResendModal] = useState(false);
-  
+  const router = useRouter(); // Initialize router hook
+
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-KE', {
       style: 'currency',
@@ -75,6 +77,11 @@ export default function DebtCard({ debt, onPaymentClick, onRefresh, onCardClick 
     }
   };
 
+  // Handle card click to navigate to debt logs page
+  const handleCardClick = () => {
+    router.push(`/debt-logs-page?debtId=${debt.id}`); // Navigate to static route with debtId query param
+  };
+
   if (!debt) {
     return <div className="border rounded-lg p-4 text-sm text-gray-600">No debt data available</div>;
   }
@@ -83,7 +90,7 @@ export default function DebtCard({ debt, onPaymentClick, onRefresh, onCardClick 
     <>
       <div 
         className="border rounded-lg p-4 hover:shadow transition-shadow cursor-pointer"
-        onClick={() => onCardClick(debt)}
+        onClick={handleCardClick} // Use custom handler instead of onCardClick prop
       >
         <div className="flex justify-between items-center mb-2">
           <div className="flex items-center gap-2">

@@ -16,7 +16,8 @@ export default function CreateDebt() {
     { id: 2, plateNumber: "KDD 071R", model: "ROSE" },
     { id: 3, plateNumber: "KDK 013U", model: "KEN" },
     { id: 4, plateNumber: "KDQ 118P", model: "NGANGA" },
-    { id: 5, plateNumber: "KDS 936J", model: "MAINA" }
+    { id: 5, plateNumber: "KDS 936J", model: "MAINA" },
+    { id: 6, plateNumber: "KDN 301K", model: "WANJIRU" }
   ]);
 
   useEffect(() => {

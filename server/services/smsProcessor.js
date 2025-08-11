@@ -7,7 +7,7 @@ class SMSProcessor {
     this.db = getFirestoreApp();
   }
 
-  // Parse M-Pesa SMS message to extract payment details
+ // Parse M-Pesa SMS message to extract payment details
   parseMpesaSMS(smsMessage) {
     try {
       console.log('Parsing SMS message:', smsMessage);
@@ -27,8 +27,18 @@ class SMSProcessor {
           datetime: /on\s+(\d{1,2}\/\d{1,2}\/\d{2})\s+at\s+(\d{1,2}:\d{2}\s+(?:AM|PM))/,
           cost: /Transaction cost,\s*Ksh([\d,]+\.?\d*)/
         },
-        // Payment received format (existing format)
+        // New payment received format (updated to match the new structure)
         payment: {
+          transactionId: /^([A-Z0-9]+)\s+Confirmed/,
+          amount: /Ksh([\d,]+\.?\d*)\s+received/,
+          accountNumber: /Account Number\s+(\d+)/,
+          phoneNumber: /(\d{12})/,
+          datetime: /on\s+(\d{1,2}\/\d{1,2}\/\d{2})\s+at\s+(\d{1,2}:\d{2}\s+(?:AM|PM))/,
+          senderName: /received from\s+([A-Z\s]+)\s+\d{12}/,
+          newBalance: /New Utility balance is\s+Ksh([\d,]+\.?\d*)/
+        },
+        // Legacy payment format (keeping for backward compatibility)
+        paymentLegacy: {
           transactionId: /^([A-Z0-9]+)/,
           amount: /Ksh([\d,]+\.?\d*)/,
           accountNumber: /for account (\d+)/,
@@ -37,7 +47,7 @@ class SMSProcessor {
           paybill: /Paybill (\d+)/,
           senderName: /from ([A-Z\s]+) \d{12}/
         },
-        // New payment sent format (like the one in your log)
+        // Payment sent format (like the one in your log)
         paymentSent: {
           transactionId: /^([A-Z0-9]+)/,
           amount: /Ksh([\d,]+\.?\d*)/,
@@ -51,12 +61,18 @@ class SMSProcessor {
       // Determine message type
       const isBalanceMessage = smsMessage.includes('Your account balance was');
       const isPaymentSent = smsMessage.includes('sent to') && smsMessage.includes('for account');
+      const isNewPaymentReceived = smsMessage.includes('Confirmed.') && smsMessage.includes('received from') && smsMessage.includes('Account Number');
+      const isLegacyPaymentReceived = smsMessage.includes('for account') && !isPaymentSent;
       
       let messageType = 'payment'; // default
       if (isBalanceMessage) {
         messageType = 'balance';
       } else if (isPaymentSent) {
         messageType = 'paymentSent';
+      } else if (isNewPaymentReceived) {
+        messageType = 'payment';
+      } else if (isLegacyPaymentReceived) {
+        messageType = 'paymentLegacy';
       }
 
       const pattern = patterns[messageType];
@@ -133,57 +149,81 @@ class SMSProcessor {
           success: true,
           data: parsedData
         };
-      } else {
-        // Use existing payment message parsing logic
-        // Extract amount (Ksh500.00)
-        const amountMatch = smsMessage.match(/Ksh([\d,]+\.?\d*)/);
-        const amount = amountMatch ? parseFloat(amountMatch[1].replace(/,/g, '')) : null;
+      } else if (messageType === 'payment') {
+        // Parse new payment received format (THB0V1WEZC Confirmed. on 11/8/25 at 12:46 PM...)
+        const transactionIdMatch = smsMessage.match(pattern.transactionId);
+        const amountMatch = smsMessage.match(pattern.amount);
+        const accountMatch = smsMessage.match(pattern.accountNumber);
+        const phoneMatch = smsMessage.match(pattern.phoneNumber);
+        const dateTimeMatch = smsMessage.match(pattern.datetime);
+        const senderMatch = smsMessage.match(pattern.senderName);
+        const balanceMatch = smsMessage.match(pattern.newBalance);
 
-        // Extract account number (12345)
-        const accountMatch = smsMessage.match(/for account (\d+)/);
-        const accountNumber = accountMatch ? accountMatch[1] : null;
-
-        // Extract phone number (254722123456)
-        const phoneMatch = smsMessage.match(/(\d{12})/);
-        const phoneNumber = phoneMatch ? phoneMatch[1] : null;
-
-        // Extract date and time (2024-07-26 at 10:30 AM)
-        const dateMatch = smsMessage.match(/on (\d{4}-\d{2}-\d{2}) at (\d{1,2}:\d{2} (?:AM|PM))/);
         let transactionDate = null;
-        if (dateMatch) {
-          const dateStr = dateMatch[1];
-          const timeStr = dateMatch[2];
-          transactionDate = new Date(`${dateStr} ${timeStr}`);
+        if (dateTimeMatch) {
+          const [_, date, time] = dateTimeMatch;
+          // Convert date from DD/MM/YY to YYYY-MM-DD
+          const [day, month, year] = date.split('/');
+          const fullYear = year.length === 2 ? `20${year}` : year;
+          transactionDate = new Date(`${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')} ${time}`);
         }
-
-        // Extract transaction ID (GT87HJ890)
-        const transactionIdMatch = smsMessage.match(/^([A-Z0-9]+)/);
-        const transactionId = transactionIdMatch ? transactionIdMatch[1] : null;
-
-        // Extract paybill number (570425)
-        const paybillMatch = smsMessage.match(/Paybill (\d+)/);
-        const paybillNumber = paybillMatch ? paybillMatch[1] : null;
-
-        // Extract sender name (JOHN DOE)
-        const senderMatch = smsMessage.match(/from ([A-Z\s]+) \d{12}/);
-        const senderName = senderMatch ? senderMatch[1].trim() : null;
 
         const parsedData = {
           messageType: 'payment',
-          transactionId,
-          amount,
-          accountNumber,
-          phoneNumber,
+          transactionId: transactionIdMatch ? transactionIdMatch[1] : null,
+          amount: amountMatch ? parseFloat(amountMatch[1].replace(/,/g, '')) : null,
+          accountNumber: accountMatch ? accountMatch[1] : null,
+          phoneNumber: phoneMatch ? phoneMatch[1] : null,
           transactionDate,
-          paybillNumber,
-          senderName,
+          senderName: senderMatch ? senderMatch[1].trim() : null,
+          newBalance: balanceMatch ? parseFloat(balanceMatch[1].replace(/,/g, '')) : null,
           originalMessage: smsMessage
         };
 
-        console.log('Parsed SMS data:', parsedData);
+        console.log('Parsed new format SMS data:', parsedData);
 
         // Validate required fields
-        if (!amount || !accountNumber) {
+        if (!parsedData.amount || !parsedData.accountNumber) {
+          throw new Error('Missing required fields: amount or account number');
+        }
+
+        return {
+          success: true,
+          data: parsedData
+        };
+      } else {
+        // Use legacy payment message parsing logic (paymentLegacy)
+        const transactionIdMatch = smsMessage.match(pattern.transactionId);
+        const amountMatch = smsMessage.match(pattern.amount);
+        const accountMatch = smsMessage.match(pattern.accountNumber);
+        const phoneMatch = smsMessage.match(pattern.phoneNumber);
+        const dateTimeMatch = smsMessage.match(pattern.datetime);
+        const paybillMatch = smsMessage.match(pattern.paybill);
+        const senderMatch = smsMessage.match(pattern.senderName);
+
+        let transactionDate = null;
+        if (dateTimeMatch) {
+          const dateStr = dateTimeMatch[1];
+          const timeStr = dateTimeMatch[2];
+          transactionDate = new Date(`${dateStr} ${timeStr}`);
+        }
+
+        const parsedData = {
+          messageType: 'payment',
+          transactionId: transactionIdMatch ? transactionIdMatch[1] : null,
+          amount: amountMatch ? parseFloat(amountMatch[1].replace(/,/g, '')) : null,
+          accountNumber: accountMatch ? accountMatch[1] : null,
+          phoneNumber: phoneMatch ? phoneMatch[1] : null,
+          transactionDate,
+          paybillNumber: paybillMatch ? paybillMatch[1] : null,
+          senderName: senderMatch ? senderMatch[1].trim() : null,
+          originalMessage: smsMessage
+        };
+
+        console.log('Parsed legacy SMS data:', parsedData);
+
+        // Validate required fields
+        if (!parsedData.amount || !parsedData.accountNumber) {
           throw new Error('Missing required fields: amount or account number');
         }
 

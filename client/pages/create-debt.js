@@ -12,8 +12,11 @@ export default function CreateDebt() {
   const router = useRouter();
   const { user } = useAuth();
   const [vehicles, setVehicles] = useState([
-    { id: 1, plateNumber: "KDK 123M", model: "Gitau" },
-    { id: 2, plateNumber: "KCA 456N", model: "Hiuhu" }
+    { id: 1, plateNumber: "KDB 436Y", model: "MWANGI" },
+    { id: 2, plateNumber: "KDD 071R", model: "ROSE" },
+    { id: 3, plateNumber: "KDK 013U", model: "KEN" },
+    { id: 4, plateNumber: "KDQ 118P", model: "NGANGA" },
+    { id: 5, plateNumber: "KDS 936J", model: "MAINA" }
   ]);
 
   useEffect(() => {

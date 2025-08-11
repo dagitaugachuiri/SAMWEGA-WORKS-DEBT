@@ -1,14 +1,16 @@
 import { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
-import { apiService } from '../lib/api'; // Assuming this is where apiService is located
+import { apiService } from '../lib/api';
 
 export default function PaymentModal({ debt, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [formErrors, setFormErrors] = useState({});
   const [paymentMethod, setPaymentMethod] = useState('');
   const chequeDetailsRef = useRef(null);
   const mpesaDetailsRef = useRef(null);
   const bankDetailsRef = useRef(null);
+  const formRef = useRef(null);
 
   useEffect(() => {
     const chequeDetails = chequeDetailsRef.current;
@@ -22,24 +24,79 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
     }
   }, [paymentMethod]);
 
+  const validateForm = (formData) => {
+    const errors = {};
+    const paymentMethod = formData.get('paymentMethod');
+    const amount = formData.get('amount');
+    const bankName = formData.get('bankName');
+    const chequeNumber = formData.get('chequeNumber');
+    const chequeDate = formData.get('chequeDate');
+    const phoneNumber = formData.get('phoneNumber') || debt.storeOwner.phoneNumber;
+
+    if (!amount || parseFloat(amount) <= 0) {
+      errors.amount = 'Amount must be greater than 0';
+    }
+
+    if (!paymentMethod) {
+      errors.paymentMethod = 'Payment method is required';
+    }
+
+    if (paymentMethod === 'mpesa' && !phoneNumber.match(/^\+254[17]\d{8}$/)) {
+      errors.phoneNumber = 'Invalid phone number format (+254XXXXXXXXX)';
+    }
+
+    if (paymentMethod === 'cheque') {
+      if (!chequeNumber) {
+        errors.chequeNumber = 'Cheque number is required';
+      }
+      if (!bankName) {
+        errors.bankName = 'Bank name is required';
+      }
+      if (!chequeDate) {
+        errors.chequeDate = 'Cheque date is required';
+      }
+    }
+
+    if (paymentMethod === 'bank' && !bankName) {
+      errors.bankName = 'Bank name is required';
+    }
+
+    return errors;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setFormErrors({});
+
+    const formData = new FormData(formRef.current);
+    
+    console.log('FormData entries:');
+    for (const [key, value] of formData.entries()) {
+      console.log(`${key}: "${value}"`);
+    }
+
+    const errors = validateForm(formData);
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      setLoading(false);
+      console.log('Client-side validation errors:', errors);
+      return;
+    }
 
     try {
-      const formData = new FormData(e.target);
       const paymentData = {
         amount: parseFloat(formData.get('amount')),
         paymentMethod: formData.get('paymentMethod'),
         phoneNumber: formData.get('phoneNumber') || debt.storeOwner.phoneNumber,
         ...(formData.get('paymentMethod') === 'cheque' && {
-          chequeNumber: formData.get('chequeNumber'),
-          bankName: formData.get('bankName'),
+          chequeNumber: formData.get('chequeNumber')?.trim(),
+          bankName: formData.get('bankName')?.trim(),
           chequeDate: formData.get('chequeDate') || new Date().toISOString(),
         }),
         ...(formData.get('paymentMethod') === 'bank' && {
-          bankName: formData.get('bankName'),
+          bankName: formData.get('bankName')?.trim(),
         }),
       };
 
@@ -91,7 +148,7 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
           <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-lg">{error}</div>
         )}
 
-        <form onSubmit={handleSubmit}>
+        <form ref={formRef} onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -103,9 +160,12 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
                 required
                 min="1"
                 max={debt.remainingAmount || debt.amount}
-                className="input-field w-full p-2 border rounded"
+                className={`input-field w-full p-2 border rounded ${formErrors.amount ? 'border-red-500' : ''}`}
                 placeholder="0"
               />
+              {formErrors.amount && (
+                <p className="text-red-500 text-sm mt-1">{formErrors.amount}</p>
+              )}
             </div>
 
             <div>
@@ -115,7 +175,7 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
               <select
                 name="paymentMethod"
                 required
-                className="select-field w-full p-2 border rounded"
+                className={`select-field w-full p-2 border rounded ${formErrors.paymentMethod ? 'border-red-500' : ''}`}
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
               >
@@ -125,6 +185,9 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
                 <option value="cheque">Cheque</option>
                 <option value="cash">Cash</option>
               </select>
+              {formErrors.paymentMethod && (
+                <p className="text-red-500 text-sm mt-1">{formErrors.paymentMethod}</p>
+              )}
             </div>
 
             <div ref={mpesaDetailsRef} className="mpesa-details hidden" data-payment-method="mpesa">
@@ -134,11 +197,15 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
               <input
                 type="text"
                 name="phoneNumber"
-                className="input-field w-full p-2 border rounded"
+                className={`input-field w-full p-2 border rounded ${formErrors.phoneNumber ? 'border-red-500' : ''}`}
                 placeholder="+254XXXXXXXXX"
                 defaultValue={debt.storeOwner.phoneNumber}
                 required={paymentMethod === 'mpesa'}
+                disabled={paymentMethod !== 'mpesa'}
               />
+              {formErrors.phoneNumber && (
+                <p className="text-red-500 text-sm mt-1">{formErrors.phoneNumber}</p>
+              )}
             </div>
 
             <div ref={bankDetailsRef} className="bank-details hidden" data-payment-method="bank">
@@ -148,10 +215,14 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
               <input
                 type="text"
                 name="bankName"
-                className="input-field w-full p-2 border rounded"
+                className={`input-field w-full p-2 border rounded ${formErrors.bankName ? 'border-red-500' : ''}`}
                 placeholder="Enter bank name"
                 required={paymentMethod === 'bank'}
+                disabled={paymentMethod !== 'bank'}
               />
+              {formErrors.bankName && (
+                <p className="text-red-500 text-sm mt-1">{formErrors.bankName}</p>
+              )}
             </div>
 
             <div ref={chequeDetailsRef} className="cheque-details hidden" data-payment-method="cheque">
@@ -162,10 +233,14 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
                 <input
                   type="text"
                   name="chequeNumber"
-                  className="input-field w-full p-2 border rounded"
+                  className={`input-field w-full p-2 border rounded ${formErrors.chequeNumber ? 'border-red-500' : ''}`}
                   placeholder="Enter cheque number"
                   required={paymentMethod === 'cheque'}
+                  disabled={paymentMethod !== 'cheque'}
                 />
+                {formErrors.chequeNumber && (
+                  <p className="text-red-500 text-sm mt-1">{formErrors.chequeNumber}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -174,10 +249,14 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
                 <input
                   type="text"
                   name="bankName"
-                  className="input-field w-full p-2 border rounded"
+                  className={`input-field w-full p-2 border rounded ${formErrors.bankName ? 'border-red-500' : ''}`}
                   placeholder="Enter bank name"
                   required={paymentMethod === 'cheque'}
+                  disabled={paymentMethod !== 'cheque'}
                 />
+                {formErrors.bankName && (
+                  <p className="text-red-500 text-sm mt-1">{formErrors.bankName}</p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -186,9 +265,13 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
                 <input
                   type="date"
                   name="chequeDate"
-                  className="input-field w-full p-2 border rounded"
+                  className={`input-field w-full p-2 border rounded ${formErrors.chequeDate ? 'border-red-500' : ''}`}
                   required={paymentMethod === 'cheque'}
+                  disabled={paymentMethod !== 'cheque'}
                 />
+                {formErrors.chequeDate && (
+                  <p className="text-red-500 text-sm mt-1">{formErrors.chequeDate}</p>
+                )}
               </div>
             </div>
           </div>

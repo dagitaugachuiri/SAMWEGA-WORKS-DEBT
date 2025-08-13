@@ -9,6 +9,7 @@ import Layout from '../components/Layout';
 export default function CreateDebt() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [phoneNumber, setPhoneNumber] = useState(''); // New state for phone number
   const router = useRouter();
   const { user } = useAuth();
   const [vehicles, setVehicles] = useState([
@@ -35,6 +36,19 @@ export default function CreateDebt() {
     fetchVehicles();
   }, []);
 
+  // Handle phone number input change to auto-convert 07... to +2547...
+  const onPhoneNumberChange = (e) => {
+    let value = e.target.value.replace(/\D/g, ''); // Remove non-digits
+    if (value.startsWith('07') && value.length >= 2) {
+      value = '+254' + value.slice(1); // Convert 07... to +2547...
+    } else if (value.startsWith('254') && value.length >= 3) {
+      value = '+' + value; // Convert 254... to +254...
+    } else if (value.startsWith('+254')) {
+      value = value; // Keep as is if already in +254 format
+    }
+    setPhoneNumber(value);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -46,7 +60,7 @@ export default function CreateDebt() {
       const debtData = {
         storeOwner: {
           name: formData.get('storeOwnerName'),
-          phoneNumber: formData.get('phoneNumber'),
+          phoneNumber: phoneNumber, // Use state value instead of formData
           email: formData.get('email') || '',
         },
         vehiclePlate: formData.get('vehiclePlate'),
@@ -229,16 +243,17 @@ export default function CreateDebt() {
                           type="tel"
                           name="phoneNumber"
                           required
-                          pattern="\+254[17][0-9]{8}"
+                          value={phoneNumber}
+                          onChange={onPhoneNumberChange}
                           className="input-field"
-                          placeholder="+254712345678"
-                          title="Phone number must be in format +254XXXXXXXXX (starting with +2541 or +2547)"
+                          placeholder="+254712345678 or 0712345678"
+                          title="Phone number will be converted to +254XXXXXXXXX format"
                         />
                         <p className="mt-1 text-xs text-gray-500">
-                          Format: +254712345678 or +254722345678
+                          Format: +254712345678 or 0712345678
                         </p>
                         <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
-                          Enter a valid Kenyan phone number starting with +2541 or +2547
+                          Enter a valid Kenyan phone number (will be converted to +254 format)
                         </div>
                       </div>
                       
@@ -289,23 +304,23 @@ export default function CreateDebt() {
                       </div>
                     </div>
                      
-                      <div className="relative mt-4 group">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Payment Method *
-                        </label>
-                        <select name="paymentMethod" required className="select-field">
-                          <option value="">Select payment method</option>
-                          <option value="mpesa">M-Pesa</option>
-                          <option value="bank">Bank Transfer</option>
-                          <option value="cheque">Cheque</option>
-                        </select>
-                        <p className="mt-1 text-xs text-gray-500">
-                          SMS will include specific instructions for the selected method
-                        </p>
-                        <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
-                          Choose how the debtor will pay (M-Pesa, Bank, or Cheque)
-                        </div>
+                    <div className="relative mt-4 group">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Payment Method *
+                      </label>
+                      <select name="paymentMethod" required className="select-field">
+                        <option value="">Select payment method</option>
+                        <option value="mpesa">M-Pesa</option>
+                        <option value="bank">Bank Transfer</option>
+                        <option value="cheque">Cheque</option>
+                      </select>
+                      <p className="mt-1 text-xs text-gray-500">
+                        SMS will include specific instructions for the selected method
+                      </p>
+                      <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
+                        Choose how the debtor will pay (M-Pesa, Bank, or Cheque)
                       </div>
+                    </div>
                   </div>
                 </div>
 
@@ -420,7 +435,6 @@ export default function CreateDebt() {
                           Select the due date for debt repayment (on or after today)
                         </div>
                       </div>
-                     
                       
                       <div className="relative group">
                         <label className="block text-sm font-medium text-gray-700 mb-1">

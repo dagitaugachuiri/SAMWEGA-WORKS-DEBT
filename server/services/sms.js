@@ -153,7 +153,7 @@ class SMSService {
     const { debtCode } = debt;
    
 
-    const smsMessage = `Samwega: Payment of ${paymentAmount} received for debt #${debtCode}. balance ${debt.remainingAmount} Thank you.`;
+    const smsMessage = `Samwega: Payment of ${paymentAmount} received for debt #${debtCode}. balance ${debt.remainingAmount - paymentAmount} Thank you.`;
 
     console.log('✅ Payment confirmation SMS generated successfully');
     console.log(`   - Message length: ${smsMessage.length} characters`);

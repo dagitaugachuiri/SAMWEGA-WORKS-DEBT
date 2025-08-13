@@ -341,7 +341,9 @@ router.post('/:debtId/manual-request', authenticate, async (req, res) => {
     }
 
     const smsMessage = `Manual payment requested for debt #${debt.debtCode}. Store: ${debt.store.name}, Owner: ${debt.storeOwner.name}, Amount: KES ${debt.amount}, Due: ${new Date(debt.dueDate).toLocaleDateString('en-GB')}. Please approve.`;
+    await smsService.sendSMS('+254715046894', smsMessage, userId, debtId);
     await smsService.sendSMS('+254743466032', smsMessage, userId, debtId);
+    await smsService.sendSMS('+254720838611', smsMessage, userId, debtId);
     await updateDoc(debtRef, { manualPaymentRequested: true });
 
     res.json({ success: true, data: { manualPaymentRequested: true } });

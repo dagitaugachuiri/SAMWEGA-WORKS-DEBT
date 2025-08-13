@@ -151,13 +151,10 @@ class SMSService {
     console.log(`   - Payment Amount: ${paymentAmount}`);
 
     const { debtCode } = debt;
-    const formattedAmount = new Intl.NumberFormat('en-KE', {
-      style: 'currency',
-      currency: 'KES'
-    }).format(paymentAmount);
+   
 
-    const smsMessage = `Payment of ${formattedAmount} received for debt #${debtCode}. Thank you. Samwega Works Ltd`;
-    
+    const smsMessage = `Samwega: Payment of ${paymentAmount} received for debt #${debtCode}. balance ${debt.remainingAmount} Thank you.`;
+
     console.log('✅ Payment confirmation SMS generated successfully');
     console.log(`   - Message length: ${smsMessage.length} characters`);
     console.log(`   - Message: ${smsMessage}`);

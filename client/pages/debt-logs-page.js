@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { toast } from 'react-hot-toast';
 import { CreditCard, Calendar, DollarSign } from 'lucide-react';
-import { getFirestore, collection, getDocs } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { app } from '../lib/firebase'; // Adjust the path if your Firebase config is in a different file
 
 const db = getFirestore(app);
@@ -11,8 +11,29 @@ const db = getFirestore(app);
 export default function DebtLogsPage() {
   const [paymentLogs, setPaymentLogs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [createdBy, setCreatedBy] = useState(null); // State to store createdBy
   const router = useRouter();
-  const { debtId } = router.query; // Get debtId from query parameters
+
+  const { debtId} = router.query; // Get debtId and createdBy from query parameters
+
+
+// Fetch debt object to get createdBy
+  const fetchDebt = async (debtId) => {
+    try {
+      const debtRef = doc(db, 'debts', debtId);
+      const debtSnap = await getDoc(debtRef);
+      if (debtSnap.exists()) {
+        setCreatedBy(debtSnap.data().createdBy || 'Unknown');
+      } else {
+        toast.error('Debt not found');
+        setCreatedBy('Unknown');
+      }
+    } catch (error) {
+      console.error('Error fetching debt:', error);
+      toast.error(error.message || 'Failed to fetch debt details');
+      setCreatedBy('Unknown');
+    }
+  };
 
   // Fetch all payment logs and filter by debtId
   const fetchPaymentLogs = async (debtId) => {
@@ -34,9 +55,10 @@ export default function DebtLogsPage() {
     }
   };
 
-  useEffect(() => {
+ useEffect(() => {
     if (debtId && router.isReady) {
-      fetchPaymentLogs(debtId);
+      fetchDebt(debtId); // Fetch debt to get createdBy
+      fetchPaymentLogs(debtId); // Fetch payment logs
     } else if (router.isReady) {
       toast.error('No debt ID provided');
       setLoading(false);
@@ -89,7 +111,8 @@ export default function DebtLogsPage() {
 
   return (
     <div className="p-4 max-w-4xl mx-auto">
-      <h2 className="text-xl font-semibold mb-4">Payment Logs</h2>
+      <h2 className="text-xl font-semibold mb-4">Payment Logs </h2>
+      <p className="text-sm text-gray-500 mb-4">Showing logs for Debt ID: {debtId} (Created by: {createdBy})</p>
       <div className="space-y-4">
         {paymentLogs.map((log) => (
           <div key={log.id} className="border rounded-lg p-4 bg-white shadow-sm">

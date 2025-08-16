@@ -22,6 +22,8 @@ export default function CreateDebt() {
   ]);
 
   useEffect(() => {
+    console.log(user.email);
+    
     // Simulate fetching vehicles from API
     const fetchVehicles = async () => {
       try {
@@ -73,6 +75,7 @@ export default function CreateDebt() {
         dueDate: formData.get('dueDate'),
         paymentMethod: formData.get('paymentMethod'),
         description: formData.get('description') || '',
+        createdBy: user.email
       };
 
       // Validate phone number format

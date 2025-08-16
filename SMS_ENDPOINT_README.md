@@ -31,7 +31,7 @@ Receives M-Pesa SMS messages and processes payments automatically.
   "message": "GT87HJ890 Confirmed. You have received Ksh500.00 from JOHN DOE 254722123456 for account 12345 via Paybill 570425 on 2024-07-26 at 10:30 AM. New M-PESA balance is Ksh10,000.00"
 }
 ```
-
+   
 **Alternative field names supported:**
 - `message`
 - `smsText`

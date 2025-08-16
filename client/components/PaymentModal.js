@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { apiService } from '../lib/api';
+import { useAuth } from '../pages/_app';
 
 export default function PaymentModal({ debt, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
@@ -11,6 +12,7 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
   const mpesaDetailsRef = useRef(null);
   const bankDetailsRef = useRef(null);
   const formRef = useRef(null);
+  const { user } = useAuth();
 
   useEffect(() => {
     const chequeDetails = chequeDetailsRef.current;
@@ -87,6 +89,7 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
 
     try {
       const paymentData = {
+        createdBy: user.email,
         amount: parseFloat(formData.get('amount')),
         paymentMethod: formData.get('paymentMethod'),
         phoneNumber: formData.get('phoneNumber') || debt.storeOwner.phoneNumber,

@@ -1,5 +1,6 @@
+
 const { getFirestoreApp } = require('./firebase');
-const { collection, query, where, limit, getDocs, doc, updateDoc, addDoc, orderBy } = require('firebase/firestore');
+const { collection, query, where, limit, getDocs, doc, updateDoc, addDoc, orderBy, getDoc, setDoc } = require('firebase/firestore');
 const smsService = require('./sms');
 
 class SMSProcessor {
@@ -7,7 +8,7 @@ class SMSProcessor {
     this.db = getFirestoreApp();
   }
 
- // Parse M-Pesa SMS message to extract payment details
+  // Parse M-Pesa SMS message to extract payment details
   parseMpesaSMS(smsMessage) {
     try {
       console.log('Parsing SMS message:', smsMessage);
@@ -17,17 +18,8 @@ class SMSProcessor {
         throw new Error('No SMS message provided or invalid format');
       }
 
-      // New regex patterns for different message formats
+      // Patterns for payment type
       const patterns = {
-        // Balance message format
-        balance: {
-          transactionId: /([A-Z0-9]{10})\s+Confirmed/,
-          mpesaBalance: /M-PESA Account\s*:\s*Ksh([\d,]+\.?\d*)/,
-          businessBalance: /Business Account\s*:\s*Ksh([\d,]+\.?\d*)/,
-          datetime: /on\s+(\d{1,2}\/\d{1,2}\/\d{2})\s+at\s+(\d{1,2}:\d{2}\s+(?:AM|PM))/,
-          cost: /Transaction cost,\s*Ksh([\d,]+\.?\d*)/
-        },
-        // New payment received format (updated to match the new structure)
         payment: {
           transactionId: /^([A-Z0-9]+)\s+Confirmed/,
           amount: /Ksh([\d,]+\.?\d*)\s+received/,
@@ -36,202 +28,54 @@ class SMSProcessor {
           datetime: /on\s+(\d{1,2}\/\d{1,2}\/\d{2})\s+at\s+(\d{1,2}:\d{2}\s+(?:AM|PM))/,
           senderName: /received from\s+([A-Z\s]+)\s+\d{12}/,
           newBalance: /New Utility balance is\s+Ksh([\d,]+\.?\d*)/
-        },
-        // Legacy payment format (keeping for backward compatibility)
-        paymentLegacy: {
-          transactionId: /^([A-Z0-9]+)/,
-          amount: /Ksh([\d,]+\.?\d*)/,
-          accountNumber: /for account (\d+)/,
-          phoneNumber: /(\d{12})/,
-          datetime: /on (\d{4}-\d{2}-\d{2}) at (\d{1,2}:\d{2} (?:AM|PM))/,
-          paybill: /Paybill (\d+)/,
-          senderName: /from ([A-Z\s]+) \d{12}/
-        },
-        // Payment sent format (like the one in your log)
-        paymentSent: {
-          transactionId: /^([A-Z0-9]+)/,
-          amount: /Ksh([\d,]+\.?\d*)/,
-          accountNumber: /for account (\d+)/,
-          datetime: /on (\d{1,2}\/\d{1,2}\/\d{2}) at (\d{1,2}:\d{2} (?:AM|PM))/,
-          balance: /New M-PESA balance is Ksh([\d,]+\.?\d*)/,
-          cost: /Transaction cost, Ksh([\d,]+\.?\d*)/
         }
       };
 
-      // Determine message type
-      const isBalanceMessage = smsMessage.includes('Your account balance was');
-      const isPaymentSent = smsMessage.includes('sent to') && smsMessage.includes('for account');
-      const isNewPaymentReceived = smsMessage.includes('Confirmed.') && smsMessage.includes('received from') && smsMessage.includes('Account Number');
-      const isLegacyPaymentReceived = smsMessage.includes('for account') && !isPaymentSent;
-      
-      let messageType = 'payment'; // default
-      if (isBalanceMessage) {
-        messageType = 'balance';
-      } else if (isPaymentSent) {
-        messageType = 'paymentSent';
-      } else if (isNewPaymentReceived) {
-        messageType = 'payment';
-      } else if (isLegacyPaymentReceived) {
-        messageType = 'paymentLegacy';
+      const pattern = patterns.payment;
+
+      const transactionIdMatch = smsMessage.match(pattern.transactionId);
+      const amountMatch = smsMessage.match(pattern.amount);
+      const accountMatch = smsMessage.match(pattern.accountNumber);
+      const phoneMatch = smsMessage.match(pattern.phoneNumber);
+      const dateTimeMatch = smsMessage.match(pattern.datetime);
+      const senderMatch = smsMessage.match(pattern.senderName);
+      const balanceMatch = smsMessage.match(pattern.newBalance);
+
+      if (!transactionIdMatch || !amountMatch || !accountMatch) {
+        throw new Error('Message does not match payment format');
       }
 
-      const pattern = patterns[messageType];
-
-      if (messageType === 'balance') {
-        // Parse balance message
-        const transactionIdMatch = smsMessage.match(pattern.transactionId);
-        const mpesaBalanceMatch = smsMessage.match(pattern.mpesaBalance);
-        const businessBalanceMatch = smsMessage.match(pattern.businessBalance);
-        const dateTimeMatch = smsMessage.match(pattern.datetime);
-        const costMatch = smsMessage.match(pattern.cost);
-
-        let transactionDate = null;
-        if (dateTimeMatch) {
-          const [_, date, time] = dateTimeMatch;
-          // Convert date from DD/MM/YY to YYYY-MM-DD
-          const [day, month, year] = date.split('/');
-          const fullYear = `20${year}`;
-          transactionDate = new Date(`${fullYear}-${month}-${day} ${time}`);
-        }
-
-        const parsedData = {
-          messageType: 'balance',
-          transactionId: transactionIdMatch ? transactionIdMatch[1] : null,
-          mpesaBalance: mpesaBalanceMatch ? parseFloat(mpesaBalanceMatch[1].replace(/,/g, '')) : null,
-          businessBalance: businessBalanceMatch ? parseFloat(businessBalanceMatch[1].replace(/,/g, '')) : null,
-          transactionDate,
-          transactionCost: costMatch ? parseFloat(costMatch[1].replace(/,/g, '')) : null,
-          originalMessage: smsMessage
-        };
-
-        console.log('Parsed balance SMS data:', parsedData);
-        return {
-          success: true,
-          data: parsedData
-        };
-      } else if (messageType === 'paymentSent') {
-        // Parse payment sent message (like LGR5TY6X format)
-        const transactionIdMatch = smsMessage.match(pattern.transactionId);
-        const amountMatch = smsMessage.match(pattern.amount);
-        const accountMatch = smsMessage.match(pattern.accountNumber);
-        const dateTimeMatch = smsMessage.match(pattern.datetime);
-        const balanceMatch = smsMessage.match(pattern.balance);
-        const costMatch = smsMessage.match(pattern.cost);
-
-        let transactionDate = null;
-        if (dateTimeMatch) {
-          const [_, date, time] = dateTimeMatch;
-          // Convert date from DD/MM/YY to YYYY-MM-DD
-          const [day, month, year] = date.split('/');
-          const fullYear = year.length === 2 ? `20${year}` : year;
-          transactionDate = new Date(`${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')} ${time}`);
-        }
-
-        const parsedData = {
-          messageType: 'paymentSent',
-          transactionId: transactionIdMatch ? transactionIdMatch[1] : null,
-          amount: amountMatch ? parseFloat(amountMatch[1].replace(/,/g, '')) : null,
-          accountNumber: accountMatch ? accountMatch[1] : null,
-          transactionDate,
-          currentBalance: balanceMatch ? parseFloat(balanceMatch[1].replace(/,/g, '')) : null,
-          transactionCost: costMatch ? parseFloat(costMatch[1].replace(/,/g, '')) : null,
-          originalMessage: smsMessage
-        };
-
-        console.log('Parsed payment sent SMS data:', parsedData);
-
-        // Validate required fields
-        if (!parsedData.amount || !parsedData.accountNumber) {
-          throw new Error('Missing required fields: amount or account number');
-        }
-
-        return {
-          success: true,
-          data: parsedData
-        };
-      } else if (messageType === 'payment') {
-        // Parse new payment received format (THB0V1WEZC Confirmed. on 11/8/25 at 12:46 PM...)
-        const transactionIdMatch = smsMessage.match(pattern.transactionId);
-        const amountMatch = smsMessage.match(pattern.amount);
-        const accountMatch = smsMessage.match(pattern.accountNumber);
-        const phoneMatch = smsMessage.match(pattern.phoneNumber);
-        const dateTimeMatch = smsMessage.match(pattern.datetime);
-        const senderMatch = smsMessage.match(pattern.senderName);
-        const balanceMatch = smsMessage.match(pattern.newBalance);
-
-        let transactionDate = null;
-        if (dateTimeMatch) {
-          const [_, date, time] = dateTimeMatch;
-          // Convert date from DD/MM/YY to YYYY-MM-DD
-          const [day, month, year] = date.split('/');
-          const fullYear = year.length === 2 ? `20${year}` : year;
-          transactionDate = new Date(`${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')} ${time}`);
-        }
-
-        const parsedData = {
-          messageType: 'payment',
-          transactionId: transactionIdMatch ? transactionIdMatch[1] : null,
-          amount: amountMatch ? parseFloat(amountMatch[1].replace(/,/g, '')) : null,
-          accountNumber: accountMatch ? accountMatch[1] : null,
-          phoneNumber: phoneMatch ? phoneMatch[1] : null,
-          transactionDate,
-          senderName: senderMatch ? senderMatch[1].trim() : null,
-          newBalance: balanceMatch ? parseFloat(balanceMatch[1].replace(/,/g, '')) : null,
-          originalMessage: smsMessage
-        };
-
-        console.log('Parsed new format SMS data:', parsedData);
-
-        // Validate required fields
-        if (!parsedData.amount || !parsedData.accountNumber) {
-          throw new Error('Missing required fields: amount or account number');
-        }
-
-        return {
-          success: true,
-          data: parsedData
-        };
-      } else {
-        // Use legacy payment message parsing logic (paymentLegacy)
-        const transactionIdMatch = smsMessage.match(pattern.transactionId);
-        const amountMatch = smsMessage.match(pattern.amount);
-        const accountMatch = smsMessage.match(pattern.accountNumber);
-        const phoneMatch = smsMessage.match(pattern.phoneNumber);
-        const dateTimeMatch = smsMessage.match(pattern.datetime);
-        const paybillMatch = smsMessage.match(pattern.paybill);
-        const senderMatch = smsMessage.match(pattern.senderName);
-
-        let transactionDate = null;
-        if (dateTimeMatch) {
-          const dateStr = dateTimeMatch[1];
-          const timeStr = dateTimeMatch[2];
-          transactionDate = new Date(`${dateStr} ${timeStr}`);
-        }
-
-        const parsedData = {
-          messageType: 'payment',
-          transactionId: transactionIdMatch ? transactionIdMatch[1] : null,
-          amount: amountMatch ? parseFloat(amountMatch[1].replace(/,/g, '')) : null,
-          accountNumber: accountMatch ? accountMatch[1] : null,
-          phoneNumber: phoneMatch ? phoneMatch[1] : null,
-          transactionDate,
-          paybillNumber: paybillMatch ? paybillMatch[1] : null,
-          senderName: senderMatch ? senderMatch[1].trim() : null,
-          originalMessage: smsMessage
-        };
-
-        console.log('Parsed legacy SMS data:', parsedData);
-
-        // Validate required fields
-        if (!parsedData.amount || !parsedData.accountNumber) {
-          throw new Error('Missing required fields: amount or account number');
-        }
-
-        return {
-          success: true,
-          data: parsedData
-        };
+      let transactionDate = null;
+      if (dateTimeMatch) {
+        const [_, date, time] = dateTimeMatch;
+        const [day, month, year] = date.split('/');
+        const fullYear = year.length === 2 ? `20${year}` : year;
+        transactionDate = new Date(`${fullYear}-${month.padStart(2, '0')}-${day.padStart(2, '0')} ${time}`);
       }
+
+      const parsedData = {
+        messageType: 'payment',
+        transactionId: transactionIdMatch ? transactionIdMatch[1] : null,
+        amount: amountMatch ? parseFloat(amountMatch[1].replace(/,/g, '')) : null,
+        accountNumber: accountMatch ? accountMatch[1] : null,
+        phoneNumber: phoneMatch ? phoneMatch[1] : null,
+        transactionDate,
+        senderName: senderMatch ? senderMatch[1].trim() : null,
+        newBalance: balanceMatch ? parseFloat(balanceMatch[1].replace(/,/g, '')) : null,
+        originalMessage: smsMessage
+      };
+
+      console.log('Parsed payment SMS data:', parsedData);
+
+      // Validate required fields
+      if (!parsedData.amount || !parsedData.accountNumber) {
+        throw new Error('Missing required fields: amount or account number');
+      }
+
+      return {
+        success: true,
+        data: parsedData
+      };
 
     } catch (error) {
       console.error('Error parsing SMS message:', error);
@@ -259,13 +103,6 @@ class SMSProcessor {
       // Clean the message (remove leading/trailing whitespace and any specific prefixes)
       const smsMessage = rawMessage.replace(/^From\s*:\s*MPESA\(\)\n?/, '').trim();
 
-      console.log('Extracted SMS message:', smsMessage);
-
-      // Handle empty or invalid message
-      if (!smsMessage) {
-        throw new Error('Empty SMS message after processing');
-      }
-
       // Use the existing parseMpesaSMS logic for consistency
       return this.parseMpesaSMS(smsMessage);
 
@@ -285,6 +122,22 @@ class SMSProcessor {
       console.log('Processing SMS payment:', smsData);
 
       const { accountNumber, amount, phoneNumber, transactionDate, transactionId, senderName } = smsData;
+
+      // Check if transaction already processed
+      if (transactionId) {
+        const transactionRef = doc(this.db, 'processedTransactions', transactionId);
+        const transactionSnap = await getDoc(transactionRef);
+
+        if (transactionSnap.exists()) {
+          console.log('Transaction already processed:', transactionId);
+          return {
+            success: false,
+            error: 'Transaction already processed'
+          };
+        }
+      } else {
+        console.warn('No transaction ID found, skipping duplicate check');
+      }
 
       // Check if we're in demo mode
       if (process.env.DEMO_MODE === 'true') {
@@ -436,6 +289,19 @@ class SMSProcessor {
           console.error('❌ Error sending confirmation SMS:', smsError);
           // Don't throw error - payment was still successful
         }
+      }
+
+      // Add to processed transactions if transactionId exists
+      if (transactionId) {
+        const transactionRef = doc(this.db, 'processedTransactions', transactionId);
+        await setDoc(transactionRef, {
+          transactionId: transactionId,
+          processedAt: new Date(),
+          debtId: debt.id,
+          amount: amount,
+          smsData: smsData
+        });
+        console.log('Transaction marked as processed in Firestore:', transactionId);
       }
 
       return {

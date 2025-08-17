@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { signOut } from 'firebase/auth';
-import { auth } from '../lib/firebase';
+import { auth, db } from '../lib/firebase';
 import { useAuth } from './_app';
 import { apiService } from '../lib/api';
 import { toast } from 'react-hot-toast';
@@ -28,6 +28,7 @@ import DebtCard from '../components/DebtCard';
 import PaymentModal from '../components/PaymentModal';
 import TestModal from '../components/TestModal';
 import Layout from '../components/Layout';
+import { doc, getDoc } from 'firebase/firestore';
 
 export default function Dashboard() {
   const [debts, setDebts] = useState([]);
@@ -42,6 +43,8 @@ export default function Dashboard() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false); // State for user menu dropdown
   const { user } = useAuth();
+    const [isDisabled, setIsDisabled] = useState(false);
+
   const router = useRouter();
 
   const fetchDebts = async () => {
@@ -64,7 +67,24 @@ export default function Dashboard() {
       setLoading(false);
     }
   };
+  useEffect(() => {
+    const checkUserStatus = async () => {
+      if (user.uid) {
+        try {
+          const userDocRef = doc(db, 'users', user.uid);
+          const userDoc = await getDoc(userDocRef);
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            setIsDisabled(userData.disabled || false);
+          }
+        } catch (error)   {
+          console.error('Error checking user status:', error);
+        }
+      }
+    };
 
+    checkUserStatus();
+  }, [user.uid]);
   useEffect(() => {
     if (user) {
       fetchDebts();
@@ -98,12 +118,28 @@ export default function Dashboard() {
   // Handle user menu actions
   const handleCreateUser = () => {
     setShowUserMenu(false);
+    if (isDisabled) {
+      toast.error('Your account is disabled. Please contact support.');
+      return;
+    }
     router.push('/create-user');
   };
 
   const handleManageUsers = () => {
     setShowUserMenu(false);
+    if (isDisabled) {
+      toast.error('Your account is disabled. Please contact support.');
+      return;
+    }
     router.push('/manage-users');
+  };
+  const handleManageSystem = () => {
+    setShowUserMenu(false);
+    if (isDisabled) {
+      toast.error('Your account is disabled. Please contact support.');
+      return;
+    }
+    router.push('/system-management');
   };
 
   const filteredDebts = debts.filter(debt => {
@@ -174,7 +210,38 @@ export default function Dashboard() {
   if (!user) {
     return null;
   }
+  useEffect(() => {
+    const checkUserStatus = async () => {
+      if (user.uid) {
+        try {
+          const userDocRef = doc(db, 'users', user.uid);
+          const userDoc = await getDoc(userDocRef);
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            setIsDisabled(userData.disabled || false);
+          }
+        } catch (error)   {
+          console.error('Error checking user status:', error);
+        }
+      }
+    };
 
+    checkUserStatus();
+  }, [user.uid]);
+
+   if (isDisabled) {
+    return (
+      <>
+       
+        <div className="min-h-screen flex items-center justify-center bg-gray-100">
+          <div className="bg-white p-6 rounded-lg shadow-lg">
+            <h1 className="text-2xl font-bold text-red-600">Account Disabled</h1>
+            <p className="mt-2 text-gray-600">Your account has been disabled. Please contact support for assistance.</p>
+          </div>
+        </div>
+      </>
+    );
+  }
   return (
     <Layout>
       <div className="min-h-screen bg-gray-50">
@@ -226,6 +293,14 @@ export default function Dashboard() {
                       >
                         <Users className="h-4 w-4" />
                         <span>Manage Users</span>
+                      </button>
+                      <button
+                        onClick={handleManageSystem}
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left flex items-center space-x-2"
+                        data-tooltip-id="manage-system-tooltip"
+                      >
+                        <Settings className="h-4 w-4" />
+                        <span>Manage System</span>
                       </button>
                       <button
                         data-tooltip-id="logout-tooltip"
@@ -363,7 +438,7 @@ export default function Dashboard() {
 
             <button
               data-tooltip-id="create-debt-tooltip"
-              onClick={() => router.push('/create-debt')}
+              onClick={() =>  router.push('/create-debt')}
               className="btn-primary flex items-center space-x-2"
             >
               <Plus className="h-4 w-4" />

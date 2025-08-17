@@ -18,6 +18,7 @@ export default function ManageUsers() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [showPasswordForm, setShowPasswordForm] = useState(false); // State to toggle password form
   const { user } = useAuth();
   const router = useRouter();
 
@@ -115,13 +116,13 @@ export default function ManageUsers() {
     }));
   };
 
-  // Handle password change (non-admin only)
+  // Handle password change (for both admin and non-admin)
   const handleChangePassword = async (e) => {
     e.preventDefault();
     if (newPassword.length < 6) {
       toast.error('Password must be at least 6 characters long');
       return;
-    }
+  }
     if (newPassword !== confirmPassword) {
       toast.error('Passwords do not match');
       return;
@@ -135,6 +136,7 @@ export default function ManageUsers() {
       toast.success('Password updated successfully');
       setNewPassword('');
       setConfirmPassword('');
+      setShowPasswordForm(false); // Hide form after successful update
     } catch (error) {
       console.error('Error updating password:', error);
       toast.error(`Failed to update password: ${error.message}`);
@@ -146,7 +148,7 @@ export default function ManageUsers() {
   // Show loading state while fetching role or user is not logged in
   if (!user || roleLoading) {
     return (
-      <Layout>
+      <Layout userId={user?.uid}>
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
           <div className="bg-white p-6 rounded-lg shadow-lg text-center">
             <h2 className="text-xl font-bold text-gray-900 mb-4">Loading...</h2>
@@ -160,7 +162,7 @@ export default function ManageUsers() {
   // Non-admin view: Password change form
   if (userRole !== 'admin') {
     return (
-      <Layout>
+      <Layout userId={user.uid}>
         <div className="min-h-screen bg-gray-50">
           <header className="bg-white shadow-sm border-b border-gray-200">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -255,9 +257,9 @@ export default function ManageUsers() {
     );
   }
 
-  // Admin view: User management table
+  // Admin view: Button-triggered password change form and user management table
   return (
-    <Layout>
+    <Layout userId={user.uid}>
       <div className="min-h-screen bg-gray-50">
         <header className="bg-white shadow-sm border-b border-gray-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -281,6 +283,86 @@ export default function ManageUsers() {
 
         <main className="p-8">
           <div className="max-w-4xl mx-auto">
+            {/* Password Change Section for Admins */}
+            <div className="mb-8 bg-white p-6 rounded-lg shadow-lg">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-bold text-gray-900">Change Your Password</h2>
+                <button
+                  onClick={() => setShowPasswordForm(!showPasswordForm)}
+                  className="btn-primary flex items-center space-x-2"
+                  data-tooltip-id="toggle-password-form-tooltip"
+                >
+                  <Key className="h-4 w-4" />
+                  <span>{showPasswordForm ? 'Hide Password Form' : 'Change Password'}</span>
+                </button>
+              </div>
+              {showPasswordForm && (
+                <form onSubmit={handleChangePassword} className="space-y-6">
+                  <div>
+                    <label htmlFor="new-password-admin" className="block text-sm font-medium text-gray-700">
+                      New Password
+                    </label>
+                    <div className="mt-1 relative">
+                      <input
+                        id="new-password-admin"
+                        type="password"
+                        required
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="input-field"
+                        placeholder="Enter new password"
+                        disabled={passwordLoading}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="confirm-password-admin" className="block text-sm font-medium text-gray-700">
+                      Confirm Password
+                    </label>
+                    <div className="mt-1 relative">
+                      <input
+                        id="confirm-password-admin"
+                        type="password"
+                        required
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="input-field"
+                        placeholder="Confirm new password"
+                        disabled={passwordLoading}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex space-x-4">
+                    <button
+                      type="submit"
+                      disabled={passwordLoading}
+                      className={`btn-primary flex items-center justify-center space-x-2 w-full ${passwordLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      data-tooltip-id="change-password-tooltip"
+                    >
+                      <Key className="h-4 w-4" />
+                      <span>{passwordLoading ? 'Updating...' : 'Change Password'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPasswordForm(false);
+                        setNewPassword('');
+                        setConfirmPassword('');
+                      }}
+                      className="btn-outline flex items-center justify-center space-x-2 w-full"
+                      data-tooltip-id="cancel-password-tooltip"
+                    >
+                      <XCircle className="h-4 w-4" />
+                      <span>Cancel</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+
+            {/* User Management Table */}
             {loading ? (
               <div className="grid grid-cols-1 gap-6">
                 {[...Array(3)].map((_, i) => (
@@ -451,6 +533,30 @@ export default function ManageUsers() {
           style={{ backgroundColor: '#333', color: '#fff', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' }}
         >
           Enable User Account
+        </Tooltip>
+        <Tooltip
+          id="change-password-tooltip"
+          place="top"
+          effect="solid"
+          style={{ backgroundColor: '#333', color: '#fff', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' }}
+        >
+          Update Password
+        </Tooltip>
+        <Tooltip
+          id="toggle-password-form-tooltip"
+          place="top"
+          effect="solid"
+          style={{ backgroundColor: '#333', color: '#fff', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' }}
+        >
+          {showPasswordForm ? 'Hide Password Form' : 'Show Password Form'}
+        </Tooltip>
+        <Tooltip
+          id="cancel-password-tooltip"
+          place="top"
+          effect="solid"
+          style={{ backgroundColor: '#333', color: '#fff', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' }}
+        >
+          Cancel Password Change
         </Tooltip>
       </div>
     </Layout>

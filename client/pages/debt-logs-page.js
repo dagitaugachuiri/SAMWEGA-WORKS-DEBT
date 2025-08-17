@@ -1,8 +1,8 @@
-// pages/debt-logs.js
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { toast } from 'react-hot-toast';
-import { CreditCard, Calendar, DollarSign } from 'lucide-react';
+import { CreditCard, Calendar, DollarSign, User, Cpu } from 'lucide-react';
+import { Tooltip } from 'react-tooltip';
 import { getFirestore, collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import { app } from '../lib/firebase'; // Adjust the path if your Firebase config is in a different file
 
@@ -14,10 +14,9 @@ export default function DebtLogsPage() {
   const [createdBy, setCreatedBy] = useState(null); // State to store createdBy
   const router = useRouter();
 
-  const { debtId} = router.query; // Get debtId and createdBy from query parameters
+  const { debtId } = router.query; // Get debtId from query parameters
 
-
-// Fetch debt object to get createdBy
+  // Fetch debt object to get createdBy
   const fetchDebt = async (debtId) => {
     try {
       const debtRef = doc(db, 'debts', debtId);
@@ -55,7 +54,7 @@ export default function DebtLogsPage() {
     }
   };
 
- useEffect(() => {
+  useEffect(() => {
     if (debtId && router.isReady) {
       fetchDebt(debtId); // Fetch debt to get createdBy
       fetchPaymentLogs(debtId); // Fetch payment logs
@@ -96,9 +95,22 @@ export default function DebtLogsPage() {
     }
   };
 
-  // Determine processing type
+  // Determine processing type and styling
   const getProcessingType = (manualProcessed) => {
-    return manualProcessed ? 'Manually Processed' : 'System Processed';
+    if (manualProcessed) {
+      return {
+        label: 'Manually Processed',
+        icon: <User className="h-4 w-4 text-orange-600" />,
+        className: 'text-orange-600 bg-orange-100',
+        tooltip: 'This transaction was manually processed by a user'
+      };
+    }
+    return {
+      label: 'System Processed',
+      icon: <Cpu className="h-4 w-4 text-blue-600" />,
+      className: 'text-blue-600 bg-blue-100',
+      tooltip: 'This transaction was automatically processed by the system'
+    };
   };
 
   if (loading) {
@@ -111,38 +123,55 @@ export default function DebtLogsPage() {
 
   return (
     <div className="p-4 max-w-4xl mx-auto">
-      <h2 className="text-xl font-semibold mb-4">Payment Logs </h2>
+      <h2 className="text-xl font-semibold mb-4">Payment Logs</h2>
       <p className="text-sm text-gray-500 mb-4">Showing logs for Debt ID: {debtId} (Created by: {createdBy})</p>
       <div className="space-y-4">
-        {paymentLogs.map((log) => (
-          <div key={log.id} className="border rounded-lg p-4 bg-white shadow-sm">
-            <div className="flex justify-between items-center mb-2">
-              <div className="flex items-center gap-2">
-                <CreditCard className="h-4 w-4 text-blue-600" />
-                <span className="text-sm font-bold">Reference: {log.reference || 'N/A'}</span>
+        {paymentLogs.map((log) => {
+          const processingType = getProcessingType(log.manualProcessed);
+          return (
+            <div key={log.id} className="border rounded-lg p-4 bg-white shadow-sm">
+              <div className="flex justify-between items-center mb-2">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-bold">Reference: {log.reference || 'N/A'}</span>
+                </div>
+                <span className={`text-sm font-medium ${log.success ? 'text-green-600' : 'text-red-600'}`}>
+                  {log.success ? 'Success' : 'Failed'}
+                </span>
               </div>
-              <span className={`text-sm font-medium ${log.success ? 'text-green-600' : 'text-red-600'}`}>
-                {log.success ? 'Success' : 'Failed'}
-              </span>
+              <div className="flex items-center gap-2 mb-1">
+                <DollarSign className="h-4 w-4 text-gray-400" />
+                <span className="text-sm text-gray-600">Amount: {formatCurrency(log.amount || 0)}</span>
+              </div>
+              <div className="flex items-center gap-2 mb-1">
+                <Calendar className="h-4 w-4 text-gray-400" />
+                <span className="text-sm text-gray-600">Processed: {formatTimestamp(log.processedAt)}</span>
+              </div>
+              <div className="flex items-center gap-2 mb-1">
+                {processingType.icon}
+                <span
+                  className={`text-sm font-medium px-2 py-1 rounded ${processingType.className}`}
+                  data-tooltip-id={`processing-type-tooltip-${log.id}`}
+                >
+                  {processingType.label} {log.createdBy ? `by ${log.createdBy}` : ''}
+                </span>
+                <Tooltip
+                  id={`processing-type-tooltip-${log.id}`}
+                  place="top"
+                  effect="solid"
+                  style={{ backgroundColor: '#333', color: '#fff', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' }}
+                >
+                  {processingType.tooltip}
+                </Tooltip>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-sm font-medium px-2 py-1 rounded ${getPaymentMethodColor(log.paymentMethod)}`}>
+                  Method: {log.paymentMethod || 'N/A'}
+                </span>
+              </div>
             </div>
-            <div className="flex items-center gap-2 mb-1">
-              <DollarSign className="h-4 w-4 text-gray-400" />
-              <span className="text-sm text-gray-600">Amount: {formatCurrency(log.amount || 0)}</span>
-            </div>
-            <div className="flex items-center gap-2 mb-1">
-              <Calendar className="h-4 w-4 text-gray-400" />
-              <span className="text-sm text-gray-600">Processed: {formatTimestamp(log.processedAt)}</span>
-            </div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-sm text-gray-600">{getProcessingType(log.manualProcessed)}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={`text-sm font-medium px-2 py-1 rounded ${getPaymentMethodColor(log.paymentMethod)}`}>
-                Method: {log.paymentMethod || 'N/A'}
-              </span>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

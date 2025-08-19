@@ -1,22 +1,21 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { toast } from 'react-hot-toast';
-import { CreditCard, Calendar, DollarSign, User, Cpu } from 'lucide-react';
+import { CreditCard, Calendar, DollarSign, User, Cpu, AlertTriangle } from 'lucide-react';
 import { Tooltip } from 'react-tooltip';
 import { getFirestore, collection, getDocs, doc, getDoc } from 'firebase/firestore';
-import { app } from '../lib/firebase'; // Adjust the path if your Firebase config is in a different file
+import { app } from '../lib/firebase';
 
 const db = getFirestore(app);
 
 export default function DebtLogsPage() {
   const [paymentLogs, setPaymentLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [createdBy, setCreatedBy] = useState(null); // State to store createdBy
+  const [createdBy, setCreatedBy] = useState(null);
   const router = useRouter();
 
-  const { debtId } = router.query; // Get debtId from query parameters
+  const { debtId } = router.query;
 
-  // Fetch debt object to get createdBy
   const fetchDebt = async (debtId) => {
     try {
       const debtRef = doc(db, 'debts', debtId);
@@ -34,7 +33,6 @@ export default function DebtLogsPage() {
     }
   };
 
-  // Fetch all payment logs and filter by debtId
   const fetchPaymentLogs = async (debtId) => {
     try {
       setLoading(true);
@@ -56,22 +54,19 @@ export default function DebtLogsPage() {
 
   useEffect(() => {
     if (debtId && router.isReady) {
-      fetchDebt(debtId); // Fetch debt to get createdBy
-      fetchPaymentLogs(debtId); // Fetch payment logs
+      fetchDebt(debtId);
+      fetchPaymentLogs(debtId);
     } else if (router.isReady) {
       toast.error('No debt ID provided');
       setLoading(false);
     }
   }, [debtId, router.isReady]);
 
-  // Format timestamp for display
   const formatTimestamp = (timestamp) => {
-    // Handle Firestore Timestamp objects
     const date = timestamp?.toDate ? timestamp.toDate() : new Date(timestamp);
     return isNaN(date.getTime()) ? 'Invalid Date' : date.toLocaleString('en-GB');
   };
 
-  // Format currency for display
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-KE', {
       style: 'currency',
@@ -79,7 +74,6 @@ export default function DebtLogsPage() {
     }).format(amount);
   };
 
-  // Map payment methods to Tailwind color classes
   const getPaymentMethodColor = (method) => {
     switch (method?.toLowerCase()) {
       case 'mpesa':
@@ -95,8 +89,15 @@ export default function DebtLogsPage() {
     }
   };
 
-  // Determine processing type and styling
-  const getProcessingType = (manualProcessed) => {
+  const getProcessingType = (manualProcessed, isDuplicate) => {
+    if (isDuplicate) {
+      return {
+        label: 'Duplicate Transaction',
+        icon: <AlertTriangle className="h-4 w-4 text-red-600" />,
+        className: 'text-red-600 bg-red-100',
+        tooltip: 'This transaction was marked as a duplicate during reconciliation'
+      };
+    }
     if (manualProcessed) {
       return {
         label: 'Manually Processed',
@@ -127,25 +128,31 @@ export default function DebtLogsPage() {
       <p className="text-sm text-gray-500 mb-4">Showing logs for Debt ID: {debtId} (Created by: {createdBy})</p>
       <div className="space-y-4">
         {paymentLogs.map((log) => {
-          const processingType = getProcessingType(log.manualProcessed);
+          const processingType = getProcessingType(log.manualProcessed, log.isDuplicate);
           return (
             <div key={log.id} className="border rounded-lg p-4 bg-white shadow-sm">
               <div className="flex justify-between items-center mb-2">
                 <div className="flex items-center gap-2">
                   <CreditCard className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm font-bold">Reference: {log.reference || 'N/A'}</span>
+                  <span className={`text-sm font-bold ${log.isDuplicate ? 'line-through text-gray-500' : ''}`}>
+                    Reference: {log.reference || 'N/A'}
+                  </span>
                 </div>
-                <span className={`text-sm font-medium ${log.success ? 'text-green-600' : 'text-red-600'}`}>
-                  {log.success ? 'Success' : 'Failed'}
+                <span className={`text-sm font-medium ${log.isDuplicate ? 'text-red-600' : log.success ? 'text-green-600' : 'text-red-600'}`}>
+                  {log.isDuplicate ? 'Duplicate' : log.success ? 'Success' : 'Failed'}
                 </span>
               </div>
               <div className="flex items-center gap-2 mb-1">
                 <DollarSign className="h-4 w-4 text-gray-400" />
-                <span className="text-sm text-gray-600">Amount: {formatCurrency(log.amount || 0)}</span>
+                <span className={`text-sm text-gray-600 ${log.isDuplicate ? 'line-through' : ''}`}>
+                  Amount: {formatCurrency(log.amount || 0)}
+                </span>
               </div>
               <div className="flex items-center gap-2 mb-1">
                 <Calendar className="h-4 w-4 text-gray-400" />
-                <span className="text-sm text-gray-600">Processed: {formatTimestamp(log.processedAt)}</span>
+                <span className={`text-sm text-gray-600 ${log.isDuplicate ? 'line-through' : ''}`}>
+                  Processed: {formatTimestamp(log.processedAt)}
+                </span>
               </div>
               <div className="flex items-center gap-2 mb-1">
                 {processingType.icon}
@@ -153,7 +160,7 @@ export default function DebtLogsPage() {
                   className={`text-sm font-medium px-2 py-1 rounded ${processingType.className}`}
                   data-tooltip-id={`processing-type-tooltip-${log.id}`}
                 >
-                  {processingType.label} {log.createdBy ? `by ${log.createdBy}` : ''}
+                  {processingType.label} {log.createdBy && !log.isDuplicate ? `by ${log.createdBy}` : ''}
                 </span>
                 <Tooltip
                   id={`processing-type-tooltip-${log.id}`}
@@ -165,10 +172,15 @@ export default function DebtLogsPage() {
                 </Tooltip>
               </div>
               <div className="flex items-center gap-2">
-                <span className={`text-sm font-medium px-2 py-1 rounded ${getPaymentMethodColor(log.paymentMethod)}`}>
+                <span className={`text-sm font-medium px-2 py-1 rounded ${getPaymentMethodColor(log.paymentMethod)} ${log.isDuplicate ? 'line-through' : ''}`}>
                   Method: {log.paymentMethod || 'N/A'}
                 </span>
               </div>
+              {log.isDuplicate && (
+                <div className="text-sm text-gray-500 mt-2">
+                  Reconciled at: {formatTimestamp(log.reconciledAt)}
+                </div>
+              )}
             </div>
           );
         })}

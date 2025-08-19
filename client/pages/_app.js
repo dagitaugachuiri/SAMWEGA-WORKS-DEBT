@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import { onAuthStateChanged } from 'firebase/auth';
 import { Toaster } from 'react-hot-toast';
 import { auth } from '../lib/firebase';
+import { apiService } from '../lib/api'; // Import apiService
 import '../styles/globals.css';
 
 // Auth context
@@ -15,6 +16,7 @@ export const useAuth = () => useContext(AuthContext);
 function MyApp({ Component, pageProps }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [reconciliationTriggered, setReconciliationTriggered] = useState(false); // Track reconciliation
   const router = useRouter();
 
   useEffect(() => {
@@ -25,6 +27,21 @@ function MyApp({ Component, pageProps }) {
 
     return () => unsubscribe();
   }, []);
+
+  // Trigger reconciliation after authentication
+  useEffect(() => {
+    if (user && !loading && !reconciliationTriggered) {
+      const triggerReconciliation = async () => {
+        try {
+          await apiService.debts.reconcile();
+          setReconciliationTriggered(true); // Prevent multiple calls
+        } catch (error) {
+          console.error('Failed to trigger reconciliation on app load:', error);
+        }
+      };
+      triggerReconciliation();
+    }
+  }, [user, loading, reconciliationTriggered]);
 
   // Redirect to login if not authenticated and not on login page
   useEffect(() => {

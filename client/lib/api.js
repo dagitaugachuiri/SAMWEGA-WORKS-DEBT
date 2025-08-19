@@ -1,5 +1,14 @@
+
+
+
+
+
+
+
+
 import axios from 'axios';
 import { auth } from './firebase';
+import { toast } from 'react-hot-toast';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
 
@@ -74,6 +83,21 @@ export const apiService = {
     // Resend invoice SMS
     resendInvoiceSMS: async (debtId) => {
       return axios.post(`${API_BASE_URL}/api/debts/${debtId}/resend-invoice-sms`);
+    },
+
+    // Trigger reconciliation
+    reconcile: async () => {
+      try {
+        const response = await api.post('/api/debts/reconcile');
+        if (response.data.success && response.data.data.totalDuplicates > 0) {
+          toast.success(response.data.message, { duration: 6000 });
+        }
+        return response.data;
+      } catch (error) {
+        console.error('Error triggering reconciliation:', error);
+        toast.error(error.response?.data?.error || 'Failed to perform reconciliation');
+        throw error;
+      }
     }
   },
 

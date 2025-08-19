@@ -535,5 +535,161 @@ router.post('/:id/resend-invoice-sms', authenticate, async (req, res) => {
     });
   }
 });
+// New reconciliation endpoint
+router.post('/reconcile', authenticate, async (req, res) => {
+  try {
+    const db = getFirestoreApp();
+    const userId = req.user.uid;
 
+    // Fetch all payment logs (global scope)
+    const paymentLogsRef = collection(db, 'payment_logs');
+    const paymentLogsSnapshot = await getDocs(query(paymentLogsRef, orderBy('createdAt', 'asc')));
+    const paymentLogs = paymentLogsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    // Group payments by transactionId (primary) or reference (fallback)
+    const paymentGroups = {};
+    for (const log of paymentLogs) {
+      const key = log.transactionId || log.reference || `no-id-${log.id}`;
+      if (!paymentGroups[key]) {
+        paymentGroups[key] = [];
+      }
+      paymentGroups[key].push(log);
+    }
+
+    const duplicates = [];
+    const debtUpdates = {};
+    const reconciliationLog = {
+      userId,
+      reconciledAt: new Date(),
+      totalDuplicatesFound: 0,
+      totalAmountCorrected: 0,
+      debtsUpdated: [],
+      duplicatePayments: []
+    };
+
+    // Process duplicates
+    for (const key of Object.keys(paymentGroups)) {
+      const group = paymentGroups[key];
+      if (group.length > 1) { // Duplicates found
+        const primaryPayment = group[0]; // Keep first payment as valid
+        const duplicatePayments = group.slice(1); // Mark rest as duplicates
+        for (const dup of duplicatePayments) {
+          if (dup.isDuplicate) {
+            // Skip already reconciled duplicates
+            continue;
+          }
+          // Mark payment as duplicate
+          await updateDoc(doc(db, 'payment_logs', dup.id), {
+            isDuplicate: true,
+            reconciledAt: new Date()
+          });
+
+          // Track duplicate for response and logging
+          duplicates.push({
+            paymentId: dup.id,
+            debtId: dup.debtId,
+            amount: dup.amount,
+            transactionId: dup.transactionId,
+            reference: dup.reference
+          });
+          reconciliationLog.duplicatePayments.push({
+            paymentId: dup.id,
+            debtId: dup.debtId,
+            amount: dup.amount,
+            transactionId: dup.transactionId,
+            reference: dup.reference
+          });
+          reconciliationLog.totalDuplicatesFound += 1;
+          reconciliationLog.totalAmountCorrected += dup.amount;
+
+          // Accumulate debt updates
+          if (dup.debtId) {
+            if (!debtUpdates[dup.debtId]) {
+              debtUpdates[dup.debtId] = { totalDeduction: 0, paymentIds: [] };
+            }
+            debtUpdates[dup.debtId].totalDeduction += dup.amount;
+            debtUpdates[dup.debtId].paymentIds.push(dup.id);
+          }
+        }
+      }
+    }
+
+    // Update affected debts
+    for (const debtId of Object.keys(debtUpdates)) {
+      const debtRef = doc(db, 'debts', debtId);
+      const debtSnapshot = await getDoc(debtRef);
+
+      if (debtSnapshot.exists()) {
+        const debt = debtSnapshot.data();
+        const deduction = debtUpdates[debtId].totalDeduction;
+        const newPaidAmount = Math.max(0, (debt.paidAmount || 0) - deduction);
+        const newRemainingAmount = Math.max(0, debt.amount - newPaidAmount);
+        let newStatus = debt.status;
+
+        if (newRemainingAmount === 0 && newPaidAmount >= debt.amount) {
+          newStatus = 'paid';
+        } else if (newPaidAmount > 0) {
+          newStatus = 'partially_paid';
+        } else {
+          newStatus = 'pending';
+        }
+
+        // Update debt
+        await updateDoc(debtRef, {
+          paidAmount: newPaidAmount,
+          remainingAmount: newRemainingAmount,
+          status: newStatus,
+          lastUpdatedAt: new Date()
+        });
+
+        reconciliationLog.debtsUpdated.push({
+          debtId,
+          amountDeducted: deduction,
+          newPaidAmount,
+          newRemainingAmount,
+          newStatus,
+          paymentIds: debtUpdates[debtId].paymentIds
+        });
+      }
+    }
+
+    // Log reconciliation action
+    if (reconciliationLog.totalDuplicatesFound > 0) {
+      await addDoc(collection(db, 'reconciliation_logs'), reconciliationLog);
+    }
+
+    // Send SMS notification to admin numbers if duplicates were found
+    if (reconciliationLog.totalDuplicatesFound > 0) {
+      const smsMessage = `Reconciliation completed: ${reconciliationLog.totalDuplicatesFound} duplicate payments found, KES ${reconciliationLog.totalAmountCorrected}.`;
+      await Promise.all([
+        smsService.sendSMS('+254715046894', smsMessage, userId, 'reconciliation'),
+        smsService.sendSMS('+254743466032', smsMessage, userId, 'reconciliation'),
+        smsService.sendSMS('+254720838611', smsMessage, userId, 'reconciliation')
+      ]);
+    }
+
+    res.json({
+      success: true,
+      message: reconciliationLog.totalDuplicatesFound > 0
+        ? `Reconciliation completed: ${reconciliationLog.totalDuplicatesFound} duplicates found and corrected`
+        : 'No duplicate payments found',
+      data: {
+        totalDuplicates: reconciliationLog.totalDuplicatesFound,
+        totalAmountCorrected: reconciliationLog.totalAmountCorrected,
+        debtsUpdated: reconciliationLog.debtsUpdated,
+        duplicatePayments: duplicates
+      }
+    });
+
+  } catch (error) {
+    console.error('Reconciliation error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to perform reconciliation'
+    });
+  }
+});
 module.exports = router;

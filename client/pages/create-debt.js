@@ -5,11 +5,14 @@ import { apiService } from '../lib/api';
 import { toast } from 'react-hot-toast';
 import { useAuth } from './_app';
 import Layout from '../components/Layout';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 export default function CreateDebt() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [phoneNumber, setPhoneNumber] = useState(''); // New state for phone number
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [creatorName, setCreatorName] = useState('Unknown');
   const router = useRouter();
   const { user } = useAuth();
   const [vehicles, setVehicles] = useState([
@@ -21,10 +24,30 @@ export default function CreateDebt() {
     { id: 6, plateNumber: "KDN 301K", model: "WANJIRU" }
   ]);
 
+  // Fetch creator's name from Firestore
   useEffect(() => {
-    console.log(user.email);
-    
-    // Simulate fetching vehicles from API
+    const fetchCreatorName = async () => {
+      if (user?.uid) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          if (userDoc.exists()) {
+            setCreatorName(userDoc.data().name || 'Unknown');
+          } else {
+            setCreatorName('Unknown');
+          }
+        } catch (error) {
+          console.error('Error fetching creator name:', error);
+          setCreatorName('Unknown');
+          toast.error('Failed to load creator name');
+        }
+      }
+    };
+
+    fetchCreatorName();
+  }, [user?.uid]);
+
+  // Simulate fetching vehicles from API
+  useEffect(() => {
     const fetchVehicles = async () => {
       try {
         // Replace with actual API call when available
@@ -62,7 +85,7 @@ export default function CreateDebt() {
       const debtData = {
         storeOwner: {
           name: formData.get('storeOwnerName'),
-          phoneNumber: phoneNumber, // Use state value instead of formData
+          phoneNumber: phoneNumber,
           email: formData.get('email') || '',
         },
         vehiclePlate: formData.get('vehiclePlate'),
@@ -75,7 +98,7 @@ export default function CreateDebt() {
         dueDate: formData.get('dueDate'),
         paymentMethod: formData.get('paymentMethod'),
         description: formData.get('description') || '',
-        createdBy: user.email
+        createdBy: creatorName // Use fetched name instead of user.email
       };
 
       // Validate phone number format

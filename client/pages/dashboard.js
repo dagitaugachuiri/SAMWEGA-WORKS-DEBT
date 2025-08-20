@@ -69,7 +69,7 @@ export default function Dashboard() {
   };
   useEffect(() => {
     const checkUserStatus = async () => {
-      if (user.uid) {
+      if (user?.uid) {
         try {
           const userDocRef = doc(db, 'users', user.uid);
           const userDoc = await getDoc(userDocRef);
@@ -84,7 +84,7 @@ export default function Dashboard() {
     };
 
     checkUserStatus();
-  }, [user.uid]);
+  }, [user?.uid]);
   useEffect(() => {
     if (user) {
       fetchDebts();

@@ -23,7 +23,7 @@ const debtSchema = Joi.object({
   dueDate: Joi.date().min(Joi.ref('dateIssued')).required(),
   paymentMethod: Joi.string().valid('mpesa', 'bank', 'cheque').required(),
   description: Joi.string().max(500).optional().allow(''),
-  createdBy: Joi.string().email().optional().allow(''),
+  createdBy: Joi.string().min(2).max(100).required(),
   vehiclePlate: Joi.string().required().trim()
     .messages({
       'any.required': 'Vehicle plate number is required',
@@ -33,7 +33,7 @@ const debtSchema = Joi.object({
 
 // Payment processing validation schema
 const paymentSchema = Joi.object({
-    createdBy: Joi.string().email().optional().allow(''),
+    createdBy: Joi.string().min(2).max(100).required(),
   amount: Joi.number().positive().required(),
   paymentMethod: Joi.string().valid('mpesa', 'bank', 'cheque','cash').required(),
   phoneNumber: Joi.when('paymentMethod', {

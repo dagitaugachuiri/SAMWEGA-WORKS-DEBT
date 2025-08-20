@@ -2,17 +2,42 @@ import { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { apiService } from '../lib/api';
 import { useAuth } from '../pages/_app';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 export default function PaymentModal({ debt, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [formErrors, setFormErrors] = useState({});
   const [paymentMethod, setPaymentMethod] = useState('');
+  const [creatorName, setCreatorName] = useState('Unknown');
   const chequeDetailsRef = useRef(null);
   const mpesaDetailsRef = useRef(null);
   const bankDetailsRef = useRef(null);
   const formRef = useRef(null);
   const { user } = useAuth();
+
+  // Fetch creator's name from Firestore
+  useEffect(() => {
+    const fetchCreatorName = async () => {
+      if (user?.uid) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', user.uid));
+          if (userDoc.exists()) {
+            setCreatorName(userDoc.data().name || 'Unknown');
+          } else {
+            setCreatorName('Unknown');
+          }
+        } catch (error) {
+          console.error('Error fetching creator name:', error);
+          setCreatorName('Unknown');
+          setError('Failed to load creator name');
+        }
+      }
+    };
+
+    fetchCreatorName();
+  }, [user?.uid]);
 
   useEffect(() => {
     const chequeDetails = chequeDetailsRef.current;
@@ -89,7 +114,8 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
 
     try {
       const paymentData = {
-        createdBy: user.email,
+        createdBy: creatorName, // Store UID for consistency
+        createdByName: creatorName, // Store name for display
         amount: parseFloat(formData.get('amount')),
         paymentMethod: formData.get('paymentMethod'),
         phoneNumber: formData.get('phoneNumber') || debt.storeOwner.phoneNumber,

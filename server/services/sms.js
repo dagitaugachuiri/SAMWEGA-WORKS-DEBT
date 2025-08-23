@@ -11,7 +11,7 @@ class SMSService {
     this.config = {
       apiKey: process.env.TEXTSMS_API_KEY,
       partnerID: process.env.TEXTSMS_PARTNER_ID,
-      shortcode: process.env.TEXTSMS_SENDER_ID || 'TEXTSMS',
+      shortcode: process.env.TEXTSMS_SENDER_ID,
       apiUrl: 'https://sms.textsms.co.ke/api/services/sendsms/'
     };
     

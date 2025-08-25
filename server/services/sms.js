@@ -136,7 +136,7 @@ class SMSService {
       : `Ref: ${debtCode}`;
 
     // Construct message with remaining amount
-    const message = `Dear ${debt.storeOwner.name}, Outstanding Ksh${formattedAmount} for #${debtCode}. ${paymentInfo}. Pay by ${formattedDate}.`;
+    const message = `Dear ${debt.storeOwner.name}, Outstanding Ksh${formattedAmount} for #${debtCode}. ${paymentInfo}. Pay by ${formattedDate} for inquiries call 0113689071.`;
 
     console.log('✅ Invoice SMS generated successfully');
     console.log(`   - Message length: ${message.length} characters`);
@@ -152,7 +152,7 @@ class SMSService {
 
     const { debtCode } = debt;
    
-    const smsMessage = `Dear ${debt.storeOwner.name}, Payment of ${paymentAmount} received for debt #${debtCode}. balance ${debt.remainingAmount - paymentAmount} Thank you.`;
+    const smsMessage = `Dear ${debt.storeOwner.name}, Payment of ${paymentAmount} received for debt #${debtCode}. balance ${debt.remainingAmount - paymentAmount} for inquiries call 0113689071 Thank you.`;
 
     console.log('✅ Payment confirmation SMS generated successfully');
     console.log(`   - Message length: ${smsMessage.length} characters`);

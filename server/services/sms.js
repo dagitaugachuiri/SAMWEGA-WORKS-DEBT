@@ -112,6 +112,7 @@ class SMSService {
     console.log(`   - Debt Code: ${debt.debtCode}`);
     console.log(`   - Original Amount: ${debt.amount}`);
     console.log(`   - Remaining Amount: ${debt.remainingAmount}`);
+    console.log(`   - Store Owner Name: ${debt.storeOwner.name}`);
 
     const { debtCode, paymentMethod, dueDate, remainingAmount } = debt;
     
@@ -135,7 +136,7 @@ class SMSService {
       : `Ref: ${debtCode}`;
 
     // Construct message with remaining amount
-    const message = `Samwega: Outstanding Ksh${formattedAmount} for #${debtCode}. ${paymentInfo}. Due by ${formattedDate}.`;
+    const message = `Dear ${debt.storeOwner.name}, Outstanding Ksh${formattedAmount} for #${debtCode}. ${paymentInfo}. Pay by ${formattedDate}.`;
 
     console.log('✅ Invoice SMS generated successfully');
     console.log(`   - Message length: ${message.length} characters`);
@@ -151,7 +152,7 @@ class SMSService {
 
     const { debtCode } = debt;
    
-    const smsMessage = `Samwega: Payment of ${paymentAmount} received for debt #${debtCode}. balance ${debt.remainingAmount - paymentAmount} Thank you.`;
+    const smsMessage = `Dear ${debt.storeOwner.name}, Payment of ${paymentAmount} received for debt #${debtCode}. balance ${debt.remainingAmount - paymentAmount} Thank you.`;
 
     console.log('✅ Payment confirmation SMS generated successfully');
     console.log(`   - Message length: ${smsMessage.length} characters`);

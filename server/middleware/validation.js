@@ -24,18 +24,25 @@ const debtSchema = Joi.object({
   paymentMethod: Joi.string().valid('mpesa', 'bank', 'cheque').required(),
   description: Joi.string().max(500).optional().allow(''),
   createdBy: Joi.string().min(2).max(100).required(),
-  vehiclePlate: Joi.string().required().trim()
+  vehiclePlate: Joi.string().allow('').required()
     .messages({
       'any.required': 'Vehicle plate number is required',
-      'string.empty': 'Vehicle plate number cannot be empty'
+      'string.base': 'Vehicle plate number must be a string'
+    }),
+  salesRep: Joi.string().min(2).max(100).required()
+    .messages({
+      'any.required': 'Sales representative name is required',
+      'string.base': 'Sales representative name must be a string',
+      'string.min': 'Sales representative name must be at least 2 characters',
+      'string.max': 'Sales representative name must not exceed 100 characters'
     })
 });
 
 // Payment processing validation schema
 const paymentSchema = Joi.object({
-    createdBy: Joi.string().min(2).max(100).required(),
+  createdBy: Joi.string().min(2).max(100).required(),
   amount: Joi.number().positive().required(),
-  paymentMethod: Joi.string().valid('mpesa', 'bank', 'cheque','cash').required(),
+  paymentMethod: Joi.string().valid('mpesa', 'bank', 'cheque', 'cash').required(),
   phoneNumber: Joi.when('paymentMethod', {
     is: 'mpesa',
     then: phoneSchema.required(),

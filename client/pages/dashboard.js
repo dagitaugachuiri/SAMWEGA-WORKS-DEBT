@@ -146,6 +146,7 @@ export default function Dashboard() {
     const matchesSearch = (
       debt.storeOwner.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       debt.store.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      debt.salesRep?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (debt.debtCode || debt.sixDigitCode || '').includes(searchTerm) ||
       debt.store.location.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -157,7 +158,7 @@ export default function Dashboard() {
     const matchesDate = dateRange.start && dateRange.end
       ? (() => {
           const startDate = new Date(dateRange.start).getTime() / 1000;
-          const endDate = new Date(dateRange.end).getTime() / 1000;
+          const endDate = new Date(dateRange.end).getTime() / 1000; 
           const debtDate = debt.createdAt?.seconds || 0;
           return debtDate >= startDate && debtDate <= endDate;
         })()

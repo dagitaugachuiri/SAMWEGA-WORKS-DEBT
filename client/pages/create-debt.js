@@ -16,12 +16,22 @@ export default function CreateDebt() {
   const router = useRouter();
   const { user } = useAuth();
   const [vehicles, setVehicles] = useState([
-    { id: 1, plateNumber: "KDB 436Y", model: "MWANGI" },
-    { id: 2, plateNumber: "KDD 071R", model: "ROSE" },
-    { id: 3, plateNumber: "KDK 013U", model: "KEN" },
-    { id: 4, plateNumber: "KDQ 118P", model: "NGANGA" },
-    { id: 5, plateNumber: "KDS 936J", model: "MAINA" },
-    { id: 6, plateNumber: "KDN 301K", model: "WANJIRU" }
+    { id: 1, plateNumber: "KDB 436Y" },
+    { id: 2, plateNumber: "KDD 071R" },
+    { id: 3, plateNumber: "KDK 013U" },
+    { id: 4, plateNumber: "KDQ 118P" },
+    { id: 5, plateNumber: "KDS 936J" },
+    { id: 6, plateNumber: "KDN 301K" },
+    { id: 7, plateNumber: "" }
+  ]);
+  const [salesReps, setSalesReps] = useState([
+    { id: 1, name: "MWANGI" },
+    { id: 2, name: "ROSE" },
+    { id: 3, name: "KEN" },
+    { id: 4, name: "NGANGA" },
+    { id: 5, name: "MAINA" },
+    { id: 6, name: "WANJIRU" },
+    { id: 7, name: "WORKSHOP HARDWARE" }
   ]);
 
   // Fetch creator's name from Firestore
@@ -46,19 +56,21 @@ export default function CreateDebt() {
     fetchCreatorName();
   }, [user?.uid]);
 
-  // Simulate fetching vehicles from API
+  // Simulate fetching vehicles and sales reps from API
   useEffect(() => {
-    const fetchVehicles = async () => {
+    const fetchVehiclesAndReps = async () => {
       try {
-        // Replace with actual API call when available
-        // const response = await apiService.vehicles.getAll();
-        // setVehicles(response.data);
+        // Replace with actual API calls when available
+        // const vehicleResponse = await apiService.vehicles.getAll();
+        // setVehicles(vehicleResponse.data);
+        // const repsResponse = await apiService.salesReps.getAll();
+        // setSalesReps(repsResponse.data);
       } catch (err) {
-        console.error('Failed to fetch vehicles:', err);
-        toast.error('Failed to load vehicle data');
+        console.error('Failed to fetch vehicles or sales reps:', err);
+        toast.error('Failed to load vehicle or sales rep data');
       }
     };
-    fetchVehicles();
+    fetchVehiclesAndReps();
   }, []);
 
   // Handle phone number input change to auto-convert 07... to +2547...
@@ -74,77 +86,82 @@ export default function CreateDebt() {
     setPhoneNumber(value);
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
+ const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  setError(null);
 
-    try {
-      // Collect form data
-      const formData = new FormData(e.target);
-      const debtData = {
-        storeOwner: {
-          name: formData.get('storeOwnerName'),
-          phoneNumber: phoneNumber,
-          email: formData.get('email') || '',
-        },
-        vehiclePlate: formData.get('vehiclePlate'),
-        store: {
-          name: formData.get('storeName'),
-          location: formData.get('location'),
-        },
-        amount: Number(formData.get('amount')),
-        dateIssued: formData.get('dateIssued') || new Date().toISOString().split('T')[0],
-        dueDate: formData.get('dueDate'),
-        paymentMethod: formData.get('paymentMethod'),
-        description: formData.get('description') || '',
-        createdBy: creatorName // Use fetched name instead of user.email
-      };
+  try {
+    // Collect form data
+    const formData = new FormData(e.target);
+    const debtData = {
+      storeOwner: {
+        name: formData.get('storeOwnerName'),
+        phoneNumber: phoneNumber,
+        email: formData.get('email') || '',
+      },
+      vehiclePlate: formData.get('vehiclePlate'),
+      salesRep: formData.get('salesRep'),
+      store: {
+        name: formData.get('storeName'),
+        location: formData.get('location'),
+      },
+      amount: Number(formData.get('amount')),
+      dateIssued: formData.get('dateIssued') || new Date().toISOString().split('T')[0],
+      dueDate: formData.get('dueDate'),
+      paymentMethod: formData.get('paymentMethod'),
+      description: formData.get('description') || '',
+      createdBy: creatorName
+    };
 
-      // Validate phone number format
-      if (!/^\+254[17]\d{8}$/.test(debtData.storeOwner.phoneNumber)) {
-        throw new Error('Phone number must be in format +254XXXXXXXXX (starting with +2541 or +2547)');
-      }
-
-      // Validate dateIssued and dueDate
-      if (!debtData.dateIssued) {
-        throw new Error('Date issued is required');
-      }
-      if (new Date(debtData.dueDate) < new Date(debtData.dateIssued)) {
-        throw new Error('Due date must be on or after date issued');
-      }
-
-      // Validate vehicle plate
-      if (!debtData.vehiclePlate) {
-        throw new Error('Vehicle plate number is required');
-      }
-
-      // Log request body for debugging
-      console.log('Debt data:', JSON.stringify(debtData, null, 2));
-
-      // Send POST request using apiService
-      const response = await apiService.debts.create(debtData);
-
-      if (response.data.success) {
-        toast.success(
-          <div>
-            <div className="font-semibold">Debt created successfully!</div>
-            <div className="text-sm">Invoice SMS sent to {debtData.storeOwner.phoneNumber}</div>
-          </div>,
-          { duration: 4000 }
-        );
-        router.push('/dashboard');
-      } else {
-        throw new Error(response.data.error || 'Failed to create debt');
-      }
-    } catch (err) {
-      console.error('Debt creation error:', err.message);
-      setError(err.message);
-      toast.error(err.message || 'Failed to create debt');
-    } finally {
-      setLoading(false);
+    // Validate phone number format
+    if (!/^\+254[17]\d{8}$/.test(debtData.storeOwner.phoneNumber)) {
+      throw new Error('Phone number must be in format +254XXXXXXXXX (starting with +2541 or +2547)');
     }
-  };
+
+    // Validate dateIssued and dueDate
+    if (!debtData.dateIssued) {
+      throw new Error('Date issued is required');
+    }
+    if (new Date(debtData.dueDate) < new Date(debtData.dateIssued)) {
+      throw new Error('Due date must be on or after date issued');
+    }
+
+    // Validate vehicle plate and sales rep
+    const selectedVehicle = vehicles.find(v => v.plateNumber === debtData.vehiclePlate);
+    if (!selectedVehicle && debtData.vehiclePlate !== '') {
+      throw new Error('Please select a valid vehicle');
+    }
+    if (!debtData.salesRep) {
+      throw new Error('Sales representative is required');
+    }
+
+    // Log request body for debugging
+    console.log('Debt data:', JSON.stringify(debtData, null, 2));
+
+    // Send POST request using apiService
+    const response = await apiService.debts.create(debtData);
+
+    if (response.data.success) {
+      toast.success(
+        <div>
+          <div className="font-semibold">Debt created successfully!</div>
+          <div className="text-sm">Invoice SMS sent to {debtData.storeOwner.phoneNumber}</div>
+        </div>,
+        { duration: 4000 }
+      );
+      router.push('/dashboard');
+    } else {
+      throw new Error(response.data.error || 'Failed to create debt');
+    }
+  } catch (err) {
+    console.error('Debt creation error:', err.message);
+    setError(err.message);
+    toast.error(err.message || 'Failed to create debt');
+  } finally {
+    setLoading(false);
+  }
+};
 
   if (!user) {
     return null;
@@ -191,7 +208,7 @@ export default function CreateDebt() {
                   </p>
                   <ul className="mt-2 list-disc list-inside space-y-1">
                     <li>Debt amount and reference code</li>
-                    <li>Vehicle plate number</li>
+                    <li>Vehicle plate number and sales rep</li>
                     <li>Payment instructions (M-Pesa, Bank, or Cheque details)</li>
                     <li>Due date and contact information</li>
                   </ul>
@@ -305,46 +322,69 @@ export default function CreateDebt() {
                     <h3 className="text-base font-medium text-gray-900 mb-4 relative group">
                       Vehicle Information
                       <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
-                        Select the vehicle associated with the debt
+                        Select the vehicle and sales representative associated with the debt
                       </div>
                     </h3>
                     
-                    <div className="relative group">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Vehicle Plate Number *
-                      </label>
-                      <select
-                        name="vehiclePlate"
-                        required
-                        className="select-field"
-                      >
-                        <option value="">Select vehicle</option>
-                        {vehicles.map((vehicle) => (
-                          <option key={vehicle.id} value={vehicle.plateNumber}>
-                            {vehicle.plateNumber} - {vehicle.model}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
-                        Select the vehicle by plate number and model
+                    <div className="space-y-4">
+                      <div className="relative group">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Vehicle Plate Number *
+                        </label>
+                        <select
+                          name="vehiclePlate"
+                          required
+                          className="select-field"
+                        >
+                          <option value="">Select vehicle</option>
+                          {vehicles.map((vehicle) => (
+                            <option key={vehicle.id} value={vehicle.plateNumber}>
+                              {vehicle.plateNumber || "No Plate (WORKSHOP HARDWARE)"}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
+                          Select the vehicle by plate number
+                        </div>
                       </div>
-                    </div>
+                      
+                      <div className="relative group">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Sales Representative *
+                        </label>
+                        <select
+                          name="salesRep"
+                          required
+                          className="select-field"
+                        >
+                          <option value="">Select sales representative</option>
+                          {salesReps.map((rep) => (
+                            <option key={rep.id} value={rep.name}>
+                              {rep.name}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
+                          Select the sales representative associated with the debt
+                        </div>
+                      </div>
                      
-                    <div className="relative mt-4 group">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Payment Method *
-                      </label>
-                      <select name="paymentMethod" required className="select-field">
-                        <option value="">Select payment method</option>
-                        <option value="mpesa">M-Pesa</option>
-                        <option value="bank">Bank Transfer</option>
-                        <option value="cheque">Cheque</option>
-                      </select>
-                      <p className="mt-1 text-xs text-gray-500">
-                        SMS will include specific instructions for the selected method
-                      </p>
-                      <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
-                        Choose how the debtor will pay (M-Pesa, Bank, or Cheque)
+                      <div className="relative group">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Payment Method *
+                        </label>
+                        <select name="paymentMethod" required className="select-field">
+                          <option value="">Select payment method</option>
+                          <option value="mpesa">M-Pesa</option>
+                          <option value="bank">Bank Transfer</option>
+                          <option value="cheque">Cheque</option>
+                        </select>
+                        <p className="mt-1 text-xs text-gray-500">
+                          SMS will include specific instructions for the selected method
+                        </p>
+                        <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
+                          Choose how the debtor will pay (M-Pesa, Bank, or Cheque)
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -422,7 +462,7 @@ export default function CreateDebt() {
                           max="10000000"
                           step="0.01"
                           className="input-field"
-                          placeholder="0.00"
+                          Placeholder="0.00"
                         />
                         <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
                           Enter the debt amount in KES (max 10M)

@@ -114,7 +114,9 @@ export default function DebtCard({ debt, onPaymentClick, onRefresh, onCardClick 
 
         <div className="flex items-center gap-2 mb-2">
           <Car className="h-4 w-4 text-gray-400" />
-          <span className="text-sm text-gray-600">Vehicle: {debt.vehiclePlate || 'N/A'}</span>
+          <span className="text-sm text-gray-600">
+            {debt.vehiclePlate === '' ? 'WORKSHOP DEBT' : `Vehicle: ${debt.vehiclePlate || 'N/A'}`}
+          </span>
         </div>
 
         <div className="bg-gray-50 rounded p-2 mb-2">

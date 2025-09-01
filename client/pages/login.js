@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { auth } from '../lib/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
 import { useAuth } from './_app';
 import { toast } from 'react-hot-toast';
 import { Eye, EyeOff, LogIn, Shield } from 'lucide-react';
 
 export default function Login() {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -25,6 +26,36 @@ export default function Login() {
     setLoading(true);
 
     try {
+      // Query Firestore for user by email (case-insensitive)
+      const usersCollection = collection(db, 'users');
+      const qEmail = query(
+        usersCollection,
+        where('email', '==', identifier.toLowerCase())
+      );
+      const emailSnapshot = await getDocs(qEmail);
+
+      let userDoc = null;
+      if (!emailSnapshot.empty) {
+        userDoc = emailSnapshot.docs[0];
+      } else {
+        // Fetch all users for case-insensitive name matching
+        const allUsersSnapshot = await getDocs(usersCollection);
+        userDoc = allUsersSnapshot.docs.find(
+          (doc) => doc.data().name.toLowerCase() === identifier.toLowerCase()
+        );
+      }
+
+      if (!userDoc) {
+        throw new Error('auth/user-not-found');
+      }
+
+      const userData = userDoc.data();
+      if (userData.disabled) {
+        throw new Error('auth/user-disabled');
+      }
+
+      // Use the email from Firestore for authentication
+      const email = userData.email;
       await signInWithEmailAndPassword(auth, email, password);
       toast.success('Successfully logged in!');
       router.push('/dashboard');
@@ -32,12 +63,14 @@ export default function Login() {
       console.error('Login error:', error);
       let errorMessage = 'Login failed. Please check your credentials.';
       
-      if (error.code === 'auth/user-not-found') {
-        errorMessage = 'No user found with this email address.';
+      if (error.message === 'auth/user-not-found' || error.code === 'auth/user-not-found') {
+        errorMessage = 'No user found with this username or email address.';
       } else if (error.code === 'auth/wrong-password') {
         errorMessage = 'Incorrect password.';
       } else if (error.code === 'auth/invalid-email') {
         errorMessage = 'Invalid email address.';
+      } else if (error.message === 'auth/user-disabled') {
+        errorMessage = 'This account is disabled. Please contact support.';
       }
       
       toast.error(errorMessage);
@@ -69,19 +102,19 @@ export default function Login() {
         <div className="card">
           <form className="space-y-6" onSubmit={handleLogin}>
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                Email Address
+              <label htmlFor="identifier" className="block text-sm font-medium text-gray-700 mb-1">
+                Username or Email
               </label>
               <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
+                id="identifier"
+                name="identifier"
+                type="text"
+                autoComplete="email username"
                 required
                 className="input-field"
-                placeholder="Enter your email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your username or email"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
                 disabled={loading}
               />
             </div>
@@ -118,11 +151,9 @@ export default function Login() {
               </div>
             </div>
 
-        
-
             <button
               type="submit"
-              disabled={loading || !email || !password}
+              disabled={loading || !identifier || !password}
               className="btn-primary w-full flex justify-center items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
@@ -143,7 +174,7 @@ export default function Login() {
         {/* Footer */}
         <div className="text-center">
           <p className="text-xs text-gray-500">
-            © 2024 Samwega Works Ltd. All rights reserved.
+            © 2025 Samwega Works Ltd. All rights reserved.
           </p>
           <p className="text-xs text-gray-400 mt-1">
             Gilgil Town, Kenya

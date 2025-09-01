@@ -124,7 +124,7 @@ class SMSService {
 
     // Format date in shorter format
     console.log(`   - Due Date: ${dueDate}`);
-    const formattedDate = new Date(dueDate.seconds).toLocaleDateString('en-GB', {
+    const formattedDate = new Date(dueDate).toLocaleDateString('en-GB', {
       day: '2-digit',
       month: '2-digit',
       year: '2-digit'

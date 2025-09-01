@@ -118,13 +118,7 @@ export default function Login() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="text-sm">
-                <span className="text-gray-600">Demo User:</span>
-                <br />
-                <span className="text-xs text-gray-500">demo@samwega.com / demo123</span>
-              </div>
-            </div>
+        
 
             <button
               type="submit"

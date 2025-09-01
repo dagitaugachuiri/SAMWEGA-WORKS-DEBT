@@ -212,3 +212,39 @@ smsService.generatePaymentConfirmationSMS(debtObject, paymentAmount)
 ```
 
 This integration provides reliable SMS delivery with comprehensive logging and error handling for the debt management system.
+
+
+
+
+const express = require('express');
+const { collection, addDoc, getDocs, query, where, orderBy, limit, startAfter, doc, getDoc, updateDoc, setDoc } = require('firebase/firestore');
+const { getFirestoreApp } = require('../services/firebase');
+const { authenticate } = require('../middleware/auth');
+const { validate, schemas } = require('../middleware/validation');
+const smsService = require('../services/sms');
+
+const router = express.Router();
+
+// Previous routes (unchanged, included for context)
+const generateDebtCode = async () => {
+  const db = getFirestoreApp();
+  let code;
+  let isUnique = false;
+  const maxAttempts = 10;
+  let attempts = 0;
+
+  while (!isUnique && attempts < maxAttempts) {
+    code = Math.floor(100000 + Math.random() * Troubleshooting
+  }
+};
+
+
+
+// Existing routes (unchanged, included for completeness)
+router.post('/', authenticate, validate(schemas.debt), async (req, res) => {
+  // ... (unchanged)
+});
+
+// ... (other existing routes)
+
+module.exports = router;

@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { ArrowLeft, AlertTriangle, MessageSquare, Plus, Info } from 'lucide-react';
@@ -6,29 +8,29 @@ import { toast } from 'react-hot-toast';
 import { useAuth } from './_app';
 import Layout from '../components/Layout';
 
-export default function CreateDebt() {
+export default function CreateSupplierDebt() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const router = useRouter();
   const { user } = useAuth();
-  const [vehicles, setVehicles] = useState([
-    { id: 1, plateNumber: "KDK 123M", model: "Gitau" },
-    { id: 2, plateNumber: "KCA 456N", model: "Hiuhu" }
+  const [suppliers, setSuppliers] = useState([
+    { id: 1, supplierId: "SUP001", name: "Nairobi Supplies Ltd" },
+    { id: 2, supplierId: "SUP002", name: "Mombasa Imports Co" }
   ]);
 
   useEffect(() => {
-    // Simulate fetching vehicles from API
-    const fetchVehicles = async () => {
+    // Simulate fetching suppliers from API
+    const fetchSuppliers = async () => {
       try {
         // Replace with actual API call when available
-        // const response = await apiService.vehicles.getAll();
-        // setVehicles(response.data);
+        // const response = await apiService.suppliers.getAll();
+        // setSuppliers(response.data);
       } catch (err) {
-        console.error('Failed to fetch vehicles:', err);
-        toast.error('Failed to load vehicle data');
+        console.error('Failed to fetch suppliers:', err);
+        toast.error('Failed to load supplier data');
       }
     };
-    fetchVehicles();
+    fetchSuppliers();
   }, []);
 
   const handleSubmit = async (e) => {
@@ -40,14 +42,14 @@ export default function CreateDebt() {
       // Collect form data
       const formData = new FormData(e.target);
       const debtData = {
-        storeOwner: {
-          name: formData.get('storeOwnerName'),
+        supplier: {
+          name: formData.get('supplierName'),
+          supplierId: formData.get('supplierId'),
           phoneNumber: formData.get('phoneNumber'),
           email: formData.get('email') || '',
         },
-        vehiclePlate: formData.get('vehiclePlate'),
-        store: {
-          name: formData.get('storeName'),
+        department: {
+          name: formData.get('departmentName'),
           location: formData.get('location'),
         },
         amount: Number(formData.get('amount')),
@@ -58,7 +60,7 @@ export default function CreateDebt() {
       };
 
       // Validate phone number format
-      if (!/^\+254[17]\d{8}$/.test(debtData.storeOwner.phoneNumber)) {
+      if (!/^\+254[17]\d{8}$/.test(debtData.supplier.phoneNumber)) {
         throw new Error('Phone number must be in format +254XXXXXXXXX (starting with +2541 or +2547)');
       }
 
@@ -70,33 +72,33 @@ export default function CreateDebt() {
         throw new Error('Due date must be on or after date issued');
       }
 
-      // Validate vehicle plate
-      if (!debtData.vehiclePlate) {
-        throw new Error('Vehicle plate number is required');
+      // Validate supplier
+      if (!debtData.supplier.supplierId) {
+        throw new Error('Supplier ID is required');
       }
 
       // Log request body for debugging
-      console.log('Debt data:', JSON.stringify(debtData, null, 2));
+      console.log('Supplier debt data:', JSON.stringify(debtData, null, 2));
 
       // Send POST request using apiService
-      const response = await apiService.debts.create(debtData);
+      const response = await apiService.supplierDebts.create(debtData);
 
       if (response.data.success) {
         toast.success(
           <div>
-            <div className="font-semibold">Debt created successfully!</div>
-            <div className="text-sm">Invoice SMS sent to {debtData.storeOwner.phoneNumber}</div>
+            <div className="font-semibold">Supplier debt created successfully!</div>
+            <div className="text-sm">Invoice SMS sent to {debtData.supplier.phoneNumber}</div>
           </div>,
           { duration: 4000 }
         );
         router.push('/dashboard');
       } else {
-        throw new Error(response.data.error || 'Failed to create debt');
+        throw new Error(response.data.error || 'Failed to create supplier debt');
       }
     } catch (err) {
-      console.error('Debt creation error:', err.message);
+      console.error('Supplier debt creation error:', err.message);
       setError(err.message);
-      toast.error(err.message || 'Failed to create debt');
+      toast.error(err.message || 'Failed to create supplier debt');
     } finally {
       setLoading(false);
     }
@@ -123,7 +125,7 @@ export default function CreateDebt() {
                 </div>
               </button>
               <h1 className="text-xl font-semibold text-gray-900">
-                Create New Debt Record
+                Create New Supplier Debt Record
               </h1>
             </div>
           </div>
@@ -143,11 +145,11 @@ export default function CreateDebt() {
                 </h3>
                 <div className="mt-1 text-sm text-blue-700">
                   <p>
-                    When you create this debt record, an invoice SMS will automatically be sent to the debtor's phone number with:
+                    When you create this supplier debt record, an invoice SMS will automatically be sent to the supplier's phone number with:
                   </p>
                   <ul className="mt-2 list-disc list-inside space-y-1">
                     <li>Debt amount and reference code</li>
-                    <li>Vehicle plate number</li>
+                    <li>Supplier ID</li>
                     <li>Payment instructions (M-Pesa, Bank, or Cheque details)</li>
                     <li>Due date and contact information</li>
                   </ul>
@@ -155,7 +157,7 @@ export default function CreateDebt() {
               </div>
             </div>
             <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
-              An SMS invoice with debt details will be sent to the debtor upon creation
+              An SMS invoice with debt details will be sent to the supplier upon creation
             </div>
           </div>
 
@@ -163,13 +165,13 @@ export default function CreateDebt() {
           <div className="bg-white shadow rounded-lg">
             <div className="px-6 py-4 border-b border-gray-200 relative group">
               <h2 className="text-lg font-medium text-gray-900">
-                Debt Information
+                Supplier Debt Information
               </h2>
               <p className="mt-1 text-sm text-gray-500">
-                Enter the debtor's details, vehicle information, and debt information below.
+                Enter the supplier's details, department information, and debt information below.
               </p>
               <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
-                Provide details about the debtor, vehicle, and debt to create a new record
+                Provide details about the supplier, department, and debt to create a new record
               </div>
             </div>
 
@@ -186,33 +188,54 @@ export default function CreateDebt() {
               )}
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Left Column: Store Owner and Vehicle Information */}
+                {/* Left Column: Supplier Information */}
                 <div className="space-y-6">
-                  {/* Store Owner Information */}
+                  {/* Supplier Information */}
                   <div>
                     <h3 className="text-base font-medium text-gray-900 mb-4 relative group">
-                      Store Owner Information
+                      Supplier Information
                       <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
-                        Details about the store owner who owes the debt
+                        Details about the supplier to whom the debt is owed
                       </div>
                     </h3>
                     
                     <div className="space-y-4">
                       <div className="relative group">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Store Owner Name *
+                          Supplier Name *
                         </label>
                         <input
                           type="text"
-                          name="storeOwnerName"
+                          name="supplierName"
                           required
                           minLength="2"
                           maxLength="100"
                           className="input-field"
-                          placeholder="Enter store owner name"
+                          placeholder="Enter supplier name"
                         />
                         <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
-                          Enter the full name of the store owner (2-100 characters)
+                          Enter the full name of the supplier (2-100 characters)
+                        </div>
+                      </div>
+                      
+                      <div className="relative group">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Supplier ID *
+                        </label>
+                        <select
+                          name="supplierId"
+                          required
+                          className="select-field"
+                        >
+                          <option value="">Select supplier</option>
+                          {suppliers.map((supplier) => (
+                            <option key={supplier.id} value={supplier.supplierId}>
+                              {supplier.supplierId} - {supplier.name}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
+                          Select the supplier by ID and name
                         </div>
                       </div>
                       
@@ -249,89 +272,40 @@ export default function CreateDebt() {
                           placeholder="Enter email address"
                         />
                         <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
-                          Optional: Enter the store owner's email for additional contact
+                          Optional: Enter the supplier's email for additional contact
                         </div>
                       </div>
                     </div>
-                  </div>
-
-                  {/* Vehicle Information */}
-                  <div>
-                    <h3 className="text-base font-medium text-gray-900 mb-4 relative group">
-                      Vehicle Information
-                      <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
-                        Select the vehicle associated with the debt
-                      </div>
-                    </h3>
-                    
-                    <div className="relative group">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Vehicle Plate Number *
-                      </label>
-                      <select
-                        name="vehiclePlate"
-                        required
-                        className="select-field"
-                      >
-                        <option value="">Select vehicle</option>
-                        {vehicles.map((vehicle) => (
-                          <option key={vehicle.id} value={vehicle.plateNumber}>
-                            {vehicle.plateNumber} - {vehicle.model}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
-                        Select the vehicle by plate number and model
-                      </div>
-                    </div>
-                     
-                      <div className="relative mt-4 group">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Payment Method *
-                        </label>
-                        <select name="paymentMethod" required className="select-field">
-                          <option value="">Select payment method</option>
-                          <option value="mpesa">M-Pesa</option>
-                          <option value="bank">Bank Transfer</option>
-                          <option value="cheque">Cheque</option>
-                        </select>
-                        <p className="mt-1 text-xs text-gray-500">
-                          SMS will include specific instructions for the selected method
-                        </p>
-                        <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
-                          Choose how the debtor will pay (M-Pesa, Bank, or Cheque)
-                        </div>
-                      </div>
                   </div>
                 </div>
 
-                {/* Right Column: Store and Debt Details */}
+                {/* Right Column: Department and Debt Details */}
                 <div className="space-y-6">
-                  {/* Store Information */}
+                  {/* Department Information */}
                   <div>
                     <h3 className="text-base font-medium text-gray-900 mb-4 relative group">
-                      Store Information
+                      Department Information
                       <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
-                        Details about the store associated with the debt
+                        Details about the department responsible for the debt
                       </div>
                     </h3>
                     
                     <div className="space-y-4">
                       <div className="relative group">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Store Name *
+                          Department Name *
                         </label>
                         <input
                           type="text"
-                          name="storeName"
+                          name="departmentName"
                           required
                           minLength="2"
                           maxLength="100"
                           className="input-field"
-                          placeholder="Enter store name"
+                          placeholder="Enter department name"
                         />
                         <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
-                          Enter the name of the store (2-100 characters)
+                          Enter the name of the department (2-100 characters)
                         </div>
                       </div>
                       
@@ -346,10 +320,10 @@ export default function CreateDebt() {
                           minLength="2"
                           maxLength="100"
                           className="input-field"
-                          placeholder="Enter store location"
+                          placeholder="Enter department location"
                         />
                         <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
-                          Enter the store's physical location (e.g., city or area)
+                          Enter the department's physical location (e.g., city or area)
                         </div>
                       </div>
                     </div>
@@ -416,7 +390,24 @@ export default function CreateDebt() {
                           Select the due date for debt repayment (on or after today)
                         </div>
                       </div>
-                     
+                      
+                      <div className="relative group">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Payment Method *
+                        </label>
+                        <select name="paymentMethod" required className="select-field">
+                          <option value="">Select payment method</option>
+                          <option value="mpesa">M-Pesa</option>
+                          <option value="bank">Bank Transfer</option>
+                          <option value="cheque">Cheque</option>
+                        </select>
+                        <p className="mt-1 text-xs text-gray-500">
+                          SMS will include specific instructions for the selected method
+                        </p>
+                        <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
+                          Choose how the debt will be paid (M-Pesa, Bank, or Cheque)
+                        </div>
+                      </div>
                       
                       <div className="relative group">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -465,11 +456,11 @@ export default function CreateDebt() {
                     ) : (
                       <>
                         <Plus className="h-4 w-4" />
-                        <span>Create Debt & Send Invoice SMS</span>
+                        <span>Create Supplier Debt & Send Invoice SMS</span>
                       </>
                     )}
                     <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
-                      Create the debt record and send an invoice SMS to the debtor
+                      Create the supplier debt record and send an invoice SMS to the supplier
                     </div>
                   </button>
                 </div>
@@ -482,17 +473,17 @@ export default function CreateDebt() {
             <div className="flex items-start">
               <Info className="h-5 w-5 text-gray-600 mt-0.5 flex-shrink-0" />
               <div className="ml-3 text-sm text-gray-600">
-                <p className="font-medium">What happens after you create this debt:</p>
+                <p className="font-medium">What happens after you create this supplier debt:</p>
                 <ul className="mt-1 space-y-1">
                   <li>• A unique 6-digit reference code will be generated</li>
-                  <li>• An invoice SMS will be sent immediately to the debtor's phone</li>
+                  <li>• An invoice SMS will be sent immediately to the supplier's phone</li>
                   <li>• The debt will appear in your dashboard with "Pending" status</li>
                   <li>• Payment notifications will be sent automatically when received</li>
                 </ul>
               </div>
             </div>
             <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
-              Summary of actions triggered after debt creation
+              Summary of actions triggered after supplier debt creation
             </div>
           </div>
         </main>

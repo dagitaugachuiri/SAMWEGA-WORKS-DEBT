@@ -15,7 +15,11 @@ const debtSchema = Joi.object({
   
   store: Joi.object({
     name: Joi.string().min(2).max(100).required(),
-    location: Joi.string().min(2).max(100).required()
+    location: Joi.string().min(2).max(100).required(),
+    locationCoords: Joi.object({
+      lat: Joi.number().min(-90).max(90).required(),
+      lng: Joi.number().min(-180).max(180).required()
+    }).optional()  // ✅ Optional field
   }).required(),
   
   amount: Joi.number().positive().max(10000000).required(), // Max 10M KES
@@ -37,6 +41,7 @@ const debtSchema = Joi.object({
       'string.max': 'Sales representative name must not exceed 100 characters'
     })
 });
+
 
 // Payment processing validation schema
 const paymentSchema = Joi.object({

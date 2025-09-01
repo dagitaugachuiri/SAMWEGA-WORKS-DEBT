@@ -663,7 +663,7 @@ router.post('/reconcile', authenticate, async (req, res) => {
 
     // Send SMS notification to admin numbers if duplicates were found
     if (reconciliationLog.totalDuplicatesFound > 0) {
-      const smsMessage = `Reconciliation completed: ${reconciliationLog.totalDuplicatesFound} duplicate payments found, KES ${reconciliationLog.totalAmountCorrected}.`;
+      const smsMessage = `Reconciliation completed: ${reconciliationLog.totalDuplicatesFound} duplicate payments found, KES ${reconciliationLog.totalAmountCorrected}. Please review the debt details.`;
       await Promise.all([
         smsService.sendSMS('+254715046894', smsMessage, userId, 'reconciliation'),
         smsService.sendSMS('+254743466032', smsMessage, userId, 'reconciliation'),

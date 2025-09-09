@@ -53,7 +53,7 @@ export default function Dashboard() {
       setLoading(true);
       const response = await apiService.debts.getAll({
         status: statusFilter === 'all' ? undefined : statusFilter,
-        limit: 100000
+        limit: 600
       });
       
       if (response.data.success) {

@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { toast } from 'react-hot-toast';
-import { CreditCard, Calendar, DollarSign, User, Cpu, AlertTriangle, Mail, Phone, User2, ArrowLeft, Store, Truck, MapPin } from 'lucide-react';
+import { CreditCard, Calendar, DollarSign, User, Cpu, AlertTriangle, Mail, Phone, User2, ArrowLeft, Store, Truck, MapPin, Edit, Trash2, FileText } from 'lucide-react';
 import { Tooltip } from 'react-tooltip';
-import { getFirestore, collection, getDocs, doc, getDoc } from 'firebase/firestore';
-import { app } from '../lib/firebase';
+import { getFirestore, collection, getDocs, doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { auth, app } from '../lib/firebase';
 
 const db = getFirestore(app);
 
@@ -14,8 +14,44 @@ export default function DebtLogsPage() {
   const [debtDetails, setDebtDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [createdBy, setCreatedBy] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [editForm, setEditForm] = useState({
+    storeName: '',
+    storeOwnerName: '',
+    storeOwnerEmail: '',
+    storeLocation: '',
+    dueDate: '',
+    amount: 0,
+  });
   const router = useRouter();
   const { debtId } = router.query;
+
+  useEffect(() => {
+    const checkUserRole = async () => {
+      if (auth.currentUser) {
+        try {
+          const userDocRef = doc(db, 'users', auth.currentUser.uid);
+          const userDoc = await getDoc(userDocRef);
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            setIsAdmin(userData.role === 'admin');
+          } else {
+            setIsAdmin(false);
+          }
+        } catch (error) {
+          console.error('Error checking user role:', error);
+          toast.error('Failed to verify user role');
+          setIsAdmin(false);
+        }
+      } else {
+        setIsAdmin(false);
+      }
+    };
+
+    checkUserRole();
+  }, []);
 
   const fetchDebtAndCustomer = async (debtId) => {
     try {
@@ -41,6 +77,14 @@ export default function DebtLogsPage() {
           dueDate: debtData.dueDate || 'N/A',
           status: debtData.status || 'N/A',
           locationCoordinates: debtData.locationCoordinates || { latitude: 0, longitude: 0 },
+        });
+        setEditForm({
+          storeName: debtData.store?.name || '',
+          storeOwnerName: debtData.storeOwner?.name || '',
+          storeOwnerEmail: debtData.storeOwner?.email || '',
+          storeLocation: debtData.store?.location || '',
+          dueDate: debtData.dueDate ? new Date(debtData.dueDate.toDate()).toISOString().split('T')[0] : '',
+          amount: debtData.amount || 0,
         });
       } else {
         toast.error('Debt not found');
@@ -76,15 +120,72 @@ export default function DebtLogsPage() {
     }
   };
 
+  const handleEditDebt = async () => {
+    try {
+      const newAmount = parseFloat(editForm.amount);
+      if (isNaN(newAmount) || newAmount < 0) {
+        toast.error('Please enter a valid amount');
+        return;
+      }
+
+      const remainingAmount = debtDetails.remainingAmount; // Preserve existing remainingAmount
+      let newStatus;
+      if (remainingAmount === 0) {
+        newStatus = 'paid';
+      } else if (remainingAmount > 0 && remainingAmount < newAmount) {
+        newStatus = 'partially_paid';
+      } else {
+        newStatus = 'pending';
+      }
+
+      const debtRef = doc(db, 'debts', debtId);
+      await updateDoc(debtRef, {
+        store: {
+          name: editForm.storeName,
+          location: editForm.storeLocation,
+        },
+        storeOwner: {
+          name: editForm.storeOwnerName,
+          email: editForm.storeOwnerEmail,
+          phoneNumber: customer?.phone || '', // Preserve existing phone number
+        },
+        dueDate: editForm.dueDate ? new Date(editForm.dueDate) : null,
+        amount: newAmount,
+        status: newStatus,
+      });
+      toast.success('Debt updated successfully!');
+      setShowEditModal(false);
+      await fetchDebtAndCustomer(debtId); // Refresh debt details
+    } catch (error) {
+      console.error('Error updating debt:', error);
+      toast.error(error.message || 'Failed to update debt');
+    }
+  };
+
+  const handleDeleteDebt = async () => {
+    try {
+      const debtRef = doc(db, 'debts', debtId);
+      await deleteDoc(debtRef);
+      toast.success('Debt deleted successfully!');
+      setShowDeleteModal(false);
+      router.push('/dashboard');
+    } catch (error) {
+      console.error('Error deleting debt:', error);
+      toast.error(error.message || 'Failed to delete debt');
+    }
+  };
+
   useEffect(() => {
-    if (debtId && router.isReady) {
+    if (debtId && router.isReady && isAdmin) {
       fetchDebtAndCustomer(debtId);
       fetchPaymentLogs(debtId);
+    } else if (router.isReady && !isAdmin) {
+      setLoading(false);
     } else if (router.isReady) {
       toast.error('No debt ID provided');
       setLoading(false);
     }
-  }, [debtId, router.isReady]);
+  }, [debtId, router.isReady, isAdmin]);
 
   const formatTimestamp = (timestamp) => {
     const date = timestamp?.toDate ? timestamp.toDate() : new Date(timestamp);
@@ -163,6 +264,24 @@ export default function DebtLogsPage() {
     );
   }
 
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="bg-white p-6 rounded-lg shadow-lg">
+          <h1 className="text-2xl font-bold text-red-600">Not Authorized</h1>
+          <p className="mt-2 text-gray-600">Only admins can access this page. Please contact support if you believe this is an error.</p>
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="mt-4 flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            <span>Back to Dashboard</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-100 p-6 sm:p-8">
       <div className="max-w-5xl mx-auto">
@@ -181,14 +300,32 @@ export default function DebtLogsPage() {
 
         {/* Customer Profile Card */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-8 transition-all duration-300 hover:shadow-xl relative">
-          <button
-            onClick={handleViewLocation}
-            className="absolute top-4 right-4 flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-            aria-label="View store location on map"
-          >
-            <MapPin className="h-4 w-4" />
-            <span className="text-sm font-medium">View Location</span>
-          </button>
+          <div className="flex gap-4 absolute top-4 right-4">
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="flex items-center gap-2 bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors"
+              aria-label="Edit debt"
+            >
+              <Edit className="h-4 w-4" />
+              <span className="text-sm font-medium">Edit Debt</span>
+            </button>
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+              aria-label="Delete debt"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span className="text-sm font-medium">Delete Debt</span>
+            </button>
+            <button
+              onClick={handleViewLocation}
+              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              aria-label="View store location on map"
+            >
+              <MapPin className="h-4 w-4" />
+              <span className="text-sm font-medium">View Location</span>
+            </button>
+          </div>
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
             {/* Avatar */}
             <div className="flex-shrink-0">
@@ -209,13 +346,13 @@ export default function DebtLogsPage() {
                   </p>
                   <p className="text-sm sm:text-base text-gray-700">{customer?.phone || 'N/A'}</p>
                 </div>
-               <div>
-                      <div>
-                      <p className="text-sm text-gray-500">Sales Representative</p>
-                      <p className="text-sm sm:text-base text-gray-700">{debtDetails.salesRep}</p>
-                    </div>
-                      <p className="text-lg sm:text-lg font-semibold text-gray-800">{debtDetails.vehiclePlate}</p>
-                    </div>
+                <div>
+                  <p className="text-sm text-gray-500 flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-gray-400" />
+                    Email
+                  </p>
+                  <p className="text-sm sm:text-base text-gray-700">{customer?.email || 'N/A'}</p>
+                </div>
               </div>
               {/* Debt Details */}
               {debtDetails && (
@@ -275,6 +412,135 @@ export default function DebtLogsPage() {
           </div>
         </div>
 
+        {/* Edit Modal */}
+        {showEditModal && (
+          <div 
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            onClick={() => setShowEditModal(false)}
+          >
+            <div 
+              className="bg-white rounded p-4 max-w-sm w-full mx-4"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-2 text-yellow-600 mb-2">
+                <Edit className="h-5 w-5" />
+                <h3 className="text-base font-semibold">Edit Debt</h3>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm text-gray-600">Store Name</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border rounded-lg"
+                    value={editForm.storeName}
+                    onChange={(e) => setEditForm({ ...editForm, storeName: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-600">Store Owner Name</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border rounded-lg"
+                    value={editForm.storeOwnerName}
+                    onChange={(e) => setEditForm({ ...editForm, storeOwnerName: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-600">Store Owner Email</label>
+                  <input
+                    type="email"
+                    className="w-full px-3 py-2 border rounded-lg"
+                    value={editForm.storeOwnerEmail}
+                    onChange={(e) => setEditForm({ ...editForm, storeOwnerEmail: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-600">Store Location</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border rounded-lg"
+                    value={editForm.storeLocation}
+                    onChange={(e) => setEditForm({ ...editForm, storeLocation: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-600">Due Date</label>
+                  <input
+                    type="date"
+                    className="w-full px-3 py-2 border rounded-lg"
+                    value={editForm.dueDate}
+                    onChange={(e) => setEditForm({ ...editForm, dueDate: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-600">Amount</label>
+                  <input
+                    type="number"
+                    className="w-full px-3 py-2 border rounded-lg"
+                    value={editForm.amount}
+                    onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })}
+                    min="0"
+                    step="0.01"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 justify-end mt-4">
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="text-sm bg-gray-100 hover:bg-gray-200 rounded p-2"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleEditDebt}
+                  className="text-sm bg-blue-100 hover:bg-blue-200 rounded p-2"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteModal && (
+          <div 
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+            onClick={() => setShowDeleteModal(false)}
+          >
+            <div 
+              className="bg-white rounded p-4 max-w-sm w-full mx-4"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-2 text-red-600 mb-2">
+                <AlertTriangle className="h-5 w-5" />
+                <h3 className="text-base font-semibold">Confirm Delete</h3>
+              </div>
+              
+              <p className="text-sm text-gray-600 mb-4">
+                Are you sure you want to delete debt <span className="font-medium">#{debtId}</span>? This action cannot be undone.
+              </p>
+
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  className="text-sm bg-gray-100 hover:bg-gray-200 rounded p-2"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDeleteDebt}
+                  className="text-sm bg-red-100 hover:bg-red-200 rounded p-2"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Payment Logs Section */}
         <div className="bg-white rounded-xl shadow-lg p-6">
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Payment History</h2>
@@ -313,6 +579,14 @@ export default function DebtLogsPage() {
                         Processed: {formatTimestamp(log.processedAt)}
                       </span>
                     </div>
+                    {log.paymentMethod === 'bank' && log.manualProcessed && log.transactionCode && (
+                      <div className="flex items-center gap-2 mb-1">
+                        <FileText className="h-4 w-4 text-gray-400" />
+                        <span className={`text-sm text-gray-600 ${log.isDuplicate ? 'line-through' : ''}`}>
+                          Transaction Code: {log.transactionCode}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 mb-1">
                       {processingType.icon}
                       <span

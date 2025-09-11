@@ -53,7 +53,7 @@ export default function Dashboard() {
       setLoading(true);
       const response = await apiService.debts.getAll({
         status: statusFilter === 'all' ? undefined : statusFilter,
-        limit: 100
+        limit: 10000,
       });
       
       if (response.data.success) {
@@ -148,6 +148,7 @@ export default function Dashboard() {
       debt.storeOwner.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       debt.store.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       debt.salesRep?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      debt.createdBy?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (debt.debtCode || debt.sixDigitCode || '').includes(searchTerm) ||
       debt.store.location.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -665,7 +666,7 @@ export default function Dashboard() {
           effect="solid"
           style={{ backgroundColor: '#333', color: '#fff', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' }}
         >
-          Tafuta Madeni
+          Tafuta Madeni: Tumia jina la mmiliki, jina la duka, namba ya deni, namba ya plate, jina la muundaji wa deni au eneo
         </Tooltip>
         <Tooltip 
           id="filter-tooltip" 

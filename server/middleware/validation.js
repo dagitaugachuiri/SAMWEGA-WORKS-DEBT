@@ -67,9 +67,13 @@ const paymentSchema = Joi.object({
     is: 'cheque',
     then: Joi.date().required(),
     otherwise: Joi.optional()
+  }),
+  transactionCode: Joi.when('paymentMethod', {
+    is: 'bank',
+    then: Joi.string().min(3).max(50).required(),
+    otherwise: Joi.optional()
   })
 });
-
 // Validation middleware factory
 const validate = (schema) => {
   return (req, res, next) => {

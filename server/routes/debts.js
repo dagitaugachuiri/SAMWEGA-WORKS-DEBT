@@ -200,7 +200,7 @@ router.post('/:id/payment', authenticate, validate(schemas.payment), async (req,
     const db = getFirestoreApp();
     const { id } = req.params;
     const userId = req.user.uid;
-    const { amount, paymentMethod, phoneNumber, chequeNumber, bankName, chequeDate, createdBy } = req.body;
+    const { amount, paymentMethod, phoneNumber, chequeNumber, bankName, chequeDate, createdBy, transactionCode } = req.body;
 
     const debtDoc = doc(db, 'debts', id);
     const debtSnapshot = await getDoc(debtDoc);
@@ -270,6 +270,7 @@ router.post('/:id/payment', authenticate, validate(schemas.payment), async (req,
       paymentLogData.chequeDate = chequeDate;
     } else if (paymentMethod === 'bank') {
       paymentLogData.bankName = bankName;
+      paymentLogData.transactionCode = transactionCode;
     }
 
     await addDoc(collection(db, 'payment_logs'), paymentLogData);

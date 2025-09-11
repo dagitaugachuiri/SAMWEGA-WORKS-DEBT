@@ -56,6 +56,7 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
     const paymentMethod = formData.get('paymentMethod');
     const amount = formData.get('amount');
     const bankName = formData.get('bankName');
+    const transactionCode = formData.get('transactionCode');
     const chequeNumber = formData.get('chequeNumber');
     const chequeDate = formData.get('chequeDate');
     const phoneNumber = formData.get('phoneNumber') || debt.storeOwner.phoneNumber;
@@ -84,8 +85,13 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
       }
     }
 
-    if (paymentMethod === 'bank' && !bankName) {
-      errors.bankName = 'Bank name is required';
+    if (paymentMethod === 'bank') {
+      if (!bankName) {
+        errors.bankName = 'Bank name is required';
+      }
+      if (!transactionCode) {
+        errors.transactionCode = 'Transaction code is required';
+      }
     }
 
     return errors;
@@ -126,6 +132,7 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
         }),
         ...(formData.get('paymentMethod') === 'bank' && {
           bankName: formData.get('bankName')?.trim(),
+          transactionCode: formData.get('transactionCode')?.trim(),
         }),
       };
 
@@ -238,20 +245,38 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
             </div>
 
             <div ref={bankDetailsRef} className="bank-details hidden" data-payment-method="bank">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Bank Name
-              </label>
-              <input
-                type="text"
-                name="bankName"
-                className={`input-field w-full p-2 border rounded ${formErrors.bankName ? 'border-red-500' : ''}`}
-                placeholder="Enter bank name"
-                required={paymentMethod === 'bank'}
-                disabled={paymentMethod !== 'bank'}
-              />
-              {formErrors.bankName && (
-                <p className="text-red-500 text-sm mt-1">{formErrors.bankName}</p>
-              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Bank Name
+                </label>
+                <input
+                  type="text"
+                  name="bankName"
+                  className={`input-field w-full p-2 border rounded ${formErrors.bankName ? 'border-red-500' : ''}`}
+                  placeholder="Enter bank name"
+                  required={paymentMethod === 'bank'}
+                  disabled={paymentMethod !== 'bank'}
+                />
+                {formErrors.bankName && (
+                  <p className="text-red-500 text-sm mt-1">{formErrors.bankName}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Transaction Code
+                </label>
+                <input
+                  type="text"
+                  name="transactionCode"
+                  className={`input-field w-full p-2 border rounded ${formErrors.transactionCode ? 'border-red-500' : ''}`}
+                  placeholder="Enter transaction code"
+                  required={paymentMethod === 'bank'}
+                  disabled={paymentMethod !== 'bank'}
+                />
+                {formErrors.transactionCode && (
+                  <p className="text-red-500 text-sm mt-1">{formErrors.transactionCode}</p>
+                )}
+              </div>
             </div>
 
             <div ref={chequeDetailsRef} className="cheque-details hidden" data-payment-method="cheque">

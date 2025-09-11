@@ -666,7 +666,7 @@ export default function Dashboard() {
           effect="solid"
           style={{ backgroundColor: '#333', color: '#fff', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' }}
         >
-          Tafuta Madeni
+          Tafuta Madeni: Tumia jina la mmiliki, jina la duka, namba ya deni, namba ya plate, jina la muundaji wa deni au eneo
         </Tooltip>
         <Tooltip 
           id="filter-tooltip" 

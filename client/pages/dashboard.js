@@ -148,6 +148,7 @@ export default function Dashboard() {
       debt.storeOwner.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       debt.store.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       debt.salesRep?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      debt.createdBy?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (debt.debtCode || debt.sixDigitCode || '').includes(searchTerm) ||
       debt.store.location.toLowerCase().includes(searchTerm.toLowerCase())
     );

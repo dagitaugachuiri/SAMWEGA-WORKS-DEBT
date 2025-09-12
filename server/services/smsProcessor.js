@@ -233,6 +233,7 @@ class SMSProcessor {
       // Update debt record
       const updateData = {
         paidAmount: newPaidAmount,
+        paidPaymentMethod: 'mpesa_paybill',
         remainingAmount: newRemainingAmount,
         status: newStatus,
         lastPaymentDate: transactionDate || new Date(),

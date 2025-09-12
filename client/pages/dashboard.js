@@ -36,15 +36,16 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [methodFilter, setMethodFilter] = useState('all');
   const [vehiclePlateFilter, setVehiclePlateFilter] = useState('');
   const [dateRange, setDateRange] = useState({ start: '', end: '' });
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [showTestModal, setShowTestModal] = useState(false);
   const [selectedDebt, setSelectedDebt] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false); // State for user menu dropdown
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const { user } = useAuth();
-    const [isDisabled, setIsDisabled] = useState(false);
+  const [isDisabled, setIsDisabled] = useState(false);
 
   const router = useRouter();
 
@@ -58,6 +59,7 @@ export default function Dashboard() {
       
       if (response.data.success) {
         setDebts(response.data.data);
+        console.log(response.data.data[6]);
       } else {
         toast.error('Failed to load debts');
       }
@@ -68,29 +70,12 @@ export default function Dashboard() {
       setLoading(false);
     }
   };
-  useEffect(() => {
-    const checkUserStatus = async () => {
-      if (user?.uid) {
-        try {
-          const userDocRef = doc(db, 'users', user.uid);
-          const userDoc = await getDoc(userDocRef);
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            setIsDisabled(userData.disabled || false);
-          }
-        } catch (error)   {
-          console.error('Error checking user status:', error);
-        }
-      }
-    };
 
-    checkUserStatus();
-  }, [user?.uid]);
   useEffect(() => {
     if (user) {
       fetchDebts();
     }
-  }, [user, statusFilter]);
+  }, [user, statusFilter]); // Removed methodFilter from dependencies
 
   useEffect(() => {
     const handleRouteChange = () => {
@@ -105,6 +90,25 @@ export default function Dashboard() {
     };
   }, [user, router.events]);
 
+  useEffect(() => {
+    const checkUserStatus = async () => {
+      if (user?.uid) {
+        try {
+          const userDocRef = doc(db, 'users', user.uid);
+          const userDoc = await getDoc(userDocRef);
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            setIsDisabled(userData.disabled || false);
+          }
+        } catch (error) {
+          console.error('Error checking user status:', error);
+        }
+      }
+    };
+
+    checkUserStatus();
+  }, [user?.uid]);
+
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -116,7 +120,6 @@ export default function Dashboard() {
     }
   };
 
-  // Handle user menu actions
   const handleCreateUser = () => {
     setShowUserMenu(false);
     if (isDisabled) {
@@ -134,6 +137,7 @@ export default function Dashboard() {
     }
     router.push('/manage-users');
   };
+
   const handleManageSystem = () => {
     setShowUserMenu(false);
     if (isDisabled) {
@@ -141,6 +145,15 @@ export default function Dashboard() {
       return;
     }
     router.push('/system-management');
+  };
+
+  const handleManageSupplierDebts = () => {
+    setShowUserMenu(false);
+    if (isDisabled) {
+      toast.error('Your account is disabled. Please contact support.');
+      return;
+    }
+    router.push('/manage-supplier-debts');
   };
 
   const filteredDebts = debts.filter(debt => {
@@ -166,7 +179,11 @@ export default function Dashboard() {
         })()
       : true;
 
-    return matchesSearch && matchesVehiclePlate && matchesDate;
+    const matchesMethod = methodFilter === 'all'
+      ? true
+      : debt.paidPaymentMethod === (methodFilter === 'manual_mpesa' ? 'manual_mpesa' : methodFilter);
+
+    return matchesSearch && matchesVehiclePlate && matchesDate && matchesMethod;
   });
 
   const stats = {
@@ -213,134 +230,102 @@ export default function Dashboard() {
   if (!user) {
     return null;
   }
-  useEffect(() => {
-    const checkUserStatus = async () => {
-      if (user.uid) {
-        try {
-          const userDocRef = doc(db, 'users', user.uid);
-          const userDoc = await getDoc(userDocRef);
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            setIsDisabled(userData.disabled || false);
-          }
-        } catch (error)   {
-          console.error('Error checking user status:', error);
-        }
-      }
-    };
 
-    checkUserStatus();
-  }, [user.uid]);
-
-  const handleManageSupplierDebts = () => {
-  setShowUserMenu(false);
   if (isDisabled) {
-    toast.error('Your account is disabled. Please contact support.');
-    return;
-  }
-  router.push('/manage-supplier-debts');
-};
-
-   if (isDisabled) {
     return (
-      <>
-       
-        <div className="min-h-screen flex items-center justify-center bg-gray-100">
-          <div className="bg-white p-6 rounded-lg shadow-lg">
-            <h1 className="text-2xl font-bold text-red-600">Account Disabled</h1>
-            <p className="mt-2 text-gray-600">Your account has been disabled. Please contact support for assistance.</p>
-          </div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+        <div className="bg-white p-6 rounded-lg shadow-lg">
+          <h1 className="text-2xl font-bold text-red-600">Account Disabled</h1>
+          <p className="mt-2 text-gray-600">Your account has been disabled. Please contact support for assistance.</p>
         </div>
-      </>
+      </div>
     );
   }
+
   return (
     <Layout>
       <div className="min-h-screen bg-gray-50">
-        {/* Header section with Reports button and User Menu */}
-       <header className="bg-white shadow-sm border-b border-gray-200">
-  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-    <div className="flex justify-between items-center h-16">
-      <div className="flex items-center">
-        <h1 className="text-2xl font-bold text-gray-900">
-          Samwega Debt Management
-        </h1>
-      </div>
-      
-      <div className="flex items-center space-x-4">
-        <button
-          data-tooltip-id="reports-tooltip"
-          onClick={handleReportsClick}
-          className="btn-secondary flex items-center space-x-2"
-        >
-          <FileText className="h-4 w-4" />
-          <span>Reports</span>
-        </button>
-        
-        <button
-          data-tooltip-id="supplier-debts-tooltip"
-          onClick={handleManageSupplierDebts}
-          className="btn-secondary flex items-center space-x-2"
-        >
-          <Package className="h-4 w-4" />
-          <span>Manage Supplier Debts</span>
-        </button>
-        
-        <div className="relative">
-          <button
-            data-tooltip-id="user-menu-tooltip"
-            onClick={() => setShowUserMenu(!showUserMenu)}
-            className="text-sm text-gray-600 hover:text-gray-900 flex items-center space-x-1"
-          >
-            <span>{user.email}</span>
-            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-          {showUserMenu && (
-            <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10">
-              <button
-                onClick={handleCreateUser}
-                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left flex items-center space-x-2"
-                data-tooltip-id="create-user-tooltip"
-              >
-                <UserPlus className="h-4 w-4" />
-                <span>Create User</span>
-              </button>
-              <button
-                onClick={handleManageUsers}
-                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left flex items-center space-x-2"
-                data-tooltip-id="manage-users-tooltip"
-              >
-                <Users className="h-4 w-4" />
-                <span>Manage Users</span>
-              </button>
-              <button
-                onClick={handleManageSystem}
-                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left flex items-center space-x-2"
-                data-tooltip-id="manage-system-tooltip"
-              >
-                <Settings className="h-4 w-4" />
-                <span>Manage System</span>
-              </button>
-              <button
-                data-tooltip-id="logout-tooltip"
-                onClick={handleLogout}
-                className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left flex items-center space-x-2"
-              >
-                <LogOut className="h-4 w-4" />
-                <span>Logout</span>
-              </button>
+        <header className="bg-white shadow-sm border-b border-gray-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex justify-between items-center h-16">
+              <div className="flex items-center">
+                <h1 className="text-2xl font-bold text-gray-900">
+                  Samwega Debt Management
+                </h1>
+              </div>
+              
+              <div className="flex items-center space-x-4">
+                <button
+                  data-tooltip-id="reports-tooltip"
+                  onClick={handleReportsClick}
+                  className="btn-secondary flex items-center space-x-2"
+                >
+                  <FileText className="h-4 w-4" />
+                  <span>Reports</span>
+                </button>
+                
+                <button
+                  data-tooltip-id="supplier-debts-tooltip"
+                  onClick={handleManageSupplierDebts}
+                  className="btn-secondary flex items-center space-x-2"
+                >
+                  <Package className="h-4 w-4" />
+                  <span>Manage Supplier Debts</span>
+                </button>
+                
+                <div className="relative">
+                  <button
+                    data-tooltip-id="user-menu-tooltip"
+                    onClick={() => setShowUserMenu(!showUserMenu)}
+                    className="text-sm text-gray-600 hover:text-gray-900 flex items-center space-x-1"
+                  >
+                    <span>{user.email}</span>
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {showUserMenu && (
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-10">
+                      <button
+                        onClick={handleCreateUser}
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left flex items-center space-x-2"
+                        data-tooltip-id="create-user-tooltip"
+                      >
+                        <UserPlus className="h-4 w-4" />
+                        <span>Create User</span>
+                      </button>
+                      <button
+                        onClick={handleManageUsers}
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left flex items-center space-x-2"
+                        data-tooltip-id="manage-users-tooltip"
+                      >
+                        <Users className="h-4 w-4" />
+                        <span>Manage Users</span>
+                      </button>
+                      <button
+                        onClick={handleManageSystem}
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left flex items-center space-x-2"
+                        data-tooltip-id="manage-system-tooltip"
+                      >
+                        <Settings className="h-4 w-4" />
+                        <span>Manage System</span>
+                      </button>
+                      <button
+                        data-tooltip-id="logout-tooltip"
+                        onClick={handleLogout}
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left flex items-center space-x-2"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        <span>Logout</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-          )}
-        </div>
-      </div>
-    </div>
-  </div>
-</header>
+          </div>
+        </header>
         <main className="p-8">
-          {/* Rest of the dashboard content remains unchanged */}
-          {/* Statistics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 p-1 gap-6 mb-8">
             <div className="card" data-tooltip-id="total-debts-tooltip">
               <div className="flex items-center">
@@ -394,7 +379,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Actions Bar */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <div className="flex flex-col sm:flex-row gap-4 flex-1">
               <div className="relative flex-1 max-w-md" data-tooltip-id="search-tooltip">
@@ -409,9 +393,8 @@ export default function Dashboard() {
               </div>
 
               <div className="relative" data-tooltip-id="filter-tooltip">
-                <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <select
-                  className="select-field pl-10 pr-10"
+                  className="select-field pl-0 pr-0"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
                 >
@@ -420,6 +403,19 @@ export default function Dashboard() {
                   <option value="paid">Paid</option>
                   <option value="partially_paid">Partially Paid</option>
                   <option value="overdue">Overdue</option>
+                </select>
+              </div>
+              <div className="relative" data-tooltip-id="method-filter-tooltip">
+                <select
+                  className="select-field pl-0 pr-0"
+                  value={methodFilter}
+                  onChange={(e) => setMethodFilter(e.target.value)}
+                >
+                  <option value="all">All payment methods</option>
+                  <option value="mpesa_paybill">M-Pesa Paybill/system</option>
+                  <option value="cheque">Cheque</option>
+                  <option value="bank">Bank</option>
+                  <option value="manual_mpesa">Manual M-Pesa</option>
                 </select>
               </div>
 
@@ -436,20 +432,18 @@ export default function Dashboard() {
 
               <div className="flex gap-2 items-center" data-tooltip-id="date-filter-tooltip">
                 <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input
                     type="date"
-                    className="input-field pl-10"
+                    className="input-field pl-5"
                     value={dateRange.start}
                     onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
                   />
                 </div>
                 <span className="text-gray-500">to</span>
                 <div className="relative">
-                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input
                     type="date"
-                    className="input-field pl-10"
+                    className="input-field pl-5"
                     value={dateRange.end}
                     onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
                   />
@@ -459,7 +453,7 @@ export default function Dashboard() {
 
             <button
               data-tooltip-id="create-debt-tooltip"
-              onClick={() =>  router.push('/create-debt')}
+              onClick={() => router.push('/create-debt')}
               className="btn-primary flex items-center space-x-2"
             >
               <Plus className="h-4 w-4" />
@@ -467,7 +461,6 @@ export default function Dashboard() {
             </button>
           </div>
 
-          {/* Debts List */}
           {loading ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[...Array(6)].map((_, i) => (
@@ -481,12 +474,12 @@ export default function Dashboard() {
               <CreditCard className="mx-auto h-12 w-12 text-gray-400" />
               <h3 className="mt-2 text-sm font-medium text-gray-900">No debts found</h3>
               <p className="mt-1 text-sm text-gray-500">
-                {searchTerm || statusFilter !== 'all' || vehiclePlateFilter || dateRange.start || dateRange.end
+                {searchTerm || statusFilter !== 'all' || methodFilter !== 'all' || vehiclePlateFilter || dateRange.start || dateRange.end
                   ? 'Try adjusting your search or filters.'
                   : 'Get started by creating a new debt record.'
                 }
               </p>
-              {!searchTerm && statusFilter === 'all' && !vehiclePlateFilter && !dateRange.start && !dateRange.end && (
+              {!searchTerm && statusFilter === 'all' && methodFilter === 'all' && !vehiclePlateFilter && !dateRange.start && !dateRange.end && (
                 <div className="mt-6">
                   <button
                     data-tooltip-id="create-first-debt-tooltip"
@@ -513,8 +506,7 @@ export default function Dashboard() {
             </div>
           )}
         </main>
-        </div>
-        {/* Payment Modal */}
+</div>
         {showPaymentModal && selectedDebt && (
           <PaymentModal
             debt={selectedDebt}
@@ -526,14 +518,12 @@ export default function Dashboard() {
           />
         )}
 
-        {/* Test Modal */}
         {showTestModal && (
           <TestModal
             onClose={() => setShowTestModal(false)}
           />
         )}
 
-        {/* Detail Modal */}
         {showDetailModal && selectedDebt && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 w-full max-w-3xl shadow-2xl overflow-y-auto">
@@ -627,7 +617,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Tooltip Components */}
         <Tooltip 
           id="total-debts-tooltip" 
           place="top"
@@ -675,6 +664,14 @@ export default function Dashboard() {
           style={{ backgroundColor: '#333', color: '#fff', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' }}
         >
           Chagua Hali ya Madeni
+        </Tooltip>
+        <Tooltip 
+          id="method-filter-tooltip" 
+          place="top"
+          effect="solid"
+          style={{ backgroundColor: '#333', color: '#fff', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' }}
+        >
+          Chagua Aina ya Malipo
         </Tooltip>
         <Tooltip 
           id="vehicle-plate-filter-tooltip" 
@@ -757,13 +754,13 @@ export default function Dashboard() {
           Manage Existing Users
         </Tooltip>
         <Tooltip 
-            id="supplier-debts-tooltip" 
-            place="top"
-            effect="solid"
-            style={{ backgroundColor: '#333', color: '#fff', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' }}
-          >
-            Manage Supplier Debts
-          </Tooltip>
+          id="supplier-debts-tooltip" 
+          place="top"
+          effect="solid"
+          style={{ backgroundColor: '#333', color: '#fff', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' }}
+        >
+          Manage Supplier Debts
+        </Tooltip>
       </Layout>
     );
 }

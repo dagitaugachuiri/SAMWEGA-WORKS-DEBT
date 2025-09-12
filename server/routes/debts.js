@@ -240,16 +240,21 @@ router.post('/:id/payment', authenticate, validate(schemas.payment), async (req,
     const newRemainingAmount = Math.max(0, debt.amount - newPaidAmount);
     const newStatus = newRemainingAmount === 0 ? 'paid' : 'partially_paid';
 
+    // Use 'manual mpesa' for mpesa payment method in debt record
+    const effectivePaymentMethod = paymentMethod === 'mpesa' ? 'manual_mpesa' : paymentMethod;
+
     await updateDoc(debtDoc, {
       status: newStatus,
       paidAmount: newPaidAmount,
       remainingAmount: newRemainingAmount,
+      paymentMethod: effectivePaymentMethod,
+      paidPaymentMethod: effectivePaymentMethod, // Store effective method
       lastPaymentDate: new Date(),
       lastUpdatedAt: new Date(),
       manualPaymentRequested: false, // Reset the request flag
     });
 
-    // Log the payment with only relevant fields
+    // Log the payment with original paymentMethod
     const paymentLogData = {
       debtId: id,
       amount: amount,
@@ -259,7 +264,7 @@ router.post('/:id/payment', authenticate, validate(schemas.payment), async (req,
       phoneNumber: phoneNumber,
       accountNumber: debt.debtCode,
       processedAt: new Date(),
-      manualProcessed: true,
+      manualProcessed: paymentMethod === 'mpesa' ? true : false,
       createdBy: createdBy
     };
 
@@ -290,6 +295,7 @@ router.post('/:id/payment', authenticate, validate(schemas.payment), async (req,
       status: newStatus,
       paidAmount: newPaidAmount,
       remainingAmount: newRemainingAmount,
+      paymentMethod: effectivePaymentMethod,
       lastPaymentDate: new Date(),
       lastUpdatedAt: new Date(),
     };
@@ -300,7 +306,7 @@ router.post('/:id/payment', authenticate, validate(schemas.payment), async (req,
       payment: {
         success: true,
         amount: amount,
-        method: paymentMethod,
+        method: paymentMethod, // Use original paymentMethod in response
         status: newStatus
       },
       sms: smsResult.data,

@@ -23,7 +23,6 @@ export default function DebtLogsPage() {
     storeOwnerEmail: '',
     storeLocation: '',
     dueDate: '',
-    amount: 0,
   });
   const router = useRouter();
   const { debtId } = router.query;
@@ -84,7 +83,6 @@ export default function DebtLogsPage() {
           storeOwnerEmail: debtData.storeOwner?.email || '',
           storeLocation: debtData.store?.location || '',
           dueDate: debtData.dueDate ? new Date(debtData.dueDate.toDate()).toISOString().split('T')[0] : '',
-          amount: debtData.amount || 0,
         });
       } else {
         toast.error('Debt not found');
@@ -121,23 +119,11 @@ export default function DebtLogsPage() {
   };
 
   const handleEditDebt = async () => {
+    if (!isAdmin) {
+      toast.error('Only admins can edit debts');
+      return;
+    }
     try {
-      const newAmount = parseFloat(editForm.amount);
-      if (isNaN(newAmount) || newAmount < 0) {
-        toast.error('Please enter a valid amount');
-        return;
-      }
-
-      const remainingAmount = debtDetails.remainingAmount; // Preserve existing remainingAmount
-      let newStatus;
-      if (remainingAmount === 0) {
-        newStatus = 'paid';
-      } else if (remainingAmount > 0 && remainingAmount < newAmount) {
-        newStatus = 'partially_paid';
-      } else {
-        newStatus = 'pending';
-      }
-
       const debtRef = doc(db, 'debts', debtId);
       await updateDoc(debtRef, {
         store: {
@@ -147,15 +133,13 @@ export default function DebtLogsPage() {
         storeOwner: {
           name: editForm.storeOwnerName,
           email: editForm.storeOwnerEmail,
-          phoneNumber: customer?.phone || '', // Preserve existing phone number
+          phoneNumber: customer?.phone || '',
         },
         dueDate: editForm.dueDate ? new Date(editForm.dueDate) : null,
-        amount: newAmount,
-        status: newStatus,
       });
       toast.success('Debt updated successfully!');
       setShowEditModal(false);
-      await fetchDebtAndCustomer(debtId); // Refresh debt details
+      await fetchDebtAndCustomer(debtId);
     } catch (error) {
       console.error('Error updating debt:', error);
       toast.error(error.message || 'Failed to update debt');
@@ -163,6 +147,10 @@ export default function DebtLogsPage() {
   };
 
   const handleDeleteDebt = async () => {
+    if (!isAdmin) {
+      toast.error('Only admins can delete debts');
+      return;
+    }
     try {
       const debtRef = doc(db, 'debts', debtId);
       await deleteDoc(debtRef);
@@ -175,17 +163,36 @@ export default function DebtLogsPage() {
     }
   };
 
+  const handleViewLocation = () => {
+    if (!isAdmin) {
+      toast.error('Only admins can view location');
+      return;
+    }
+    if (debtDetails?.locationCoordinates?.latitude && debtDetails?.locationCoordinates?.longitude) {
+      router.push({
+        pathname: '/map',
+        query: {
+          debtId,
+          lat: debtDetails.locationCoordinates.latitude,
+          lng: debtDetails.locationCoordinates.longitude,
+          storeName: debtDetails.storeName,
+          storeLocation: debtDetails.storeLocation,
+        },
+      });
+    } else {
+      toast.error('No valid location coordinates available');
+    }
+  };
+
   useEffect(() => {
-    if (debtId && router.isReady && isAdmin) {
+    if (debtId && router.isReady) {
       fetchDebtAndCustomer(debtId);
       fetchPaymentLogs(debtId);
-    } else if (router.isReady && !isAdmin) {
-      setLoading(false);
     } else if (router.isReady) {
       toast.error('No debt ID provided');
       setLoading(false);
     }
-  }, [debtId, router.isReady, isAdmin]);
+  }, [debtId, router.isReady]);
 
   const formatTimestamp = (timestamp) => {
     const date = timestamp?.toDate ? timestamp.toDate() : new Date(timestamp);
@@ -199,16 +206,40 @@ export default function DebtLogsPage() {
     }).format(amount);
   };
 
+  const formatPaymentMethod = (method) => {
+    if (!method) return 'N/A';
+    switch (method.toLowerCase()) {
+      case 'manual mpesa':
+        return 'Manual M-Pesa';
+      case 'mpesa':
+        return 'M-Pesa';
+      case 'card':
+        return 'Card';
+      case 'cash':
+        return 'Cash';
+      case 'bank':
+        return 'Bank';
+      case 'cheque':
+        return 'Cheque';
+      default:
+        return method;
+    }
+  };
+
   const getPaymentMethodColor = (method) => {
     switch (method?.toLowerCase()) {
       case 'mpesa':
         return 'text-green-600 bg-green-100';
+      case 'manual mpesa':
+        return 'text-teal-600 bg-teal-100';
       case 'card':
         return 'text-blue-600 bg-blue-100';
       case 'cash':
         return 'text-purple-600 bg-purple-100';
       case 'bank':
         return 'text-indigo-600 bg-indigo-100';
+      case 'cheque':
+        return 'text-gray-600 bg-gray-100';
       default:
         return 'text-gray-600 bg-gray-100';
     }
@@ -239,23 +270,6 @@ export default function DebtLogsPage() {
     };
   };
 
-  const handleViewLocation = () => {
-    if (debtDetails?.locationCoordinates?.latitude && debtDetails?.locationCoordinates?.longitude) {
-      router.push({
-        pathname: '/map',
-        query: {
-          debtId,
-          lat: debtDetails.locationCoordinates.latitude,
-          lng: debtDetails.locationCoordinates.longitude,
-          storeName: debtDetails.storeName,
-          storeLocation: debtDetails.storeLocation,
-        },
-      });
-    } else {
-      toast.error('No valid location coordinates available');
-    }
-  };
-
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen bg-gray-100">
@@ -264,28 +278,9 @@ export default function DebtLogsPage() {
     );
   }
 
-  if (!isAdmin) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
-        <div className="bg-white p-6 rounded-lg shadow-lg">
-          <h1 className="text-2xl font-bold text-red-600">Not Authorized</h1>
-          <p className="mt-2 text-gray-600">Only admins can access this page. Please contact support if you believe this is an error.</p>
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="mt-4 flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span>Back to Dashboard</span>
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gray-100 p-6 sm:p-8">
       <div className="max-w-5xl mx-auto">
-        {/* Header with Back Button */}
         <div className="flex items-center justify-between mb-6">
           <button
             onClick={() => router.back()}
@@ -298,42 +293,44 @@ export default function DebtLogsPage() {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Customer Profile & Payment Logs</h1>
         </div>
 
-        {/* Customer Profile Card */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-8 transition-all duration-300 hover:shadow-xl relative">
-          <div className="flex gap-4 absolute top-4 right-4">
-            <button
-              onClick={() => setShowEditModal(true)}
-              className="flex items-center gap-2 bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors"
-              aria-label="Edit debt"
-            >
-              <Edit className="h-4 w-4" />
-              <span className="text-sm font-medium">Edit Debt</span>
-            </button>
-            <button
-              onClick={() => setShowDeleteModal(true)}
-              className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
-              aria-label="Delete debt"
-            >
-              <Trash2 className="h-4 w-4" />
-              <span className="text-sm font-medium">Delete Debt</span>
-            </button>
-            <button
-              onClick={handleViewLocation}
-              className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-              aria-label="View store location on map"
-            >
-              <MapPin className="h-4 w-4" />
-              <span className="text-sm font-medium">View Location</span>
-            </button>
-          </div>
+          {isAdmin && (
+            <div className="flex gap-4 absolute top-4 right-4">
+              <button
+                onClick={() => setShowEditModal(true)}
+                className="flex items-center gap-2 bg-yellow-600 text-white px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors"
+                aria-label="Edit debt"
+                data-tooltip-id="edit-debt-tooltip"
+              >
+                <Edit className="h-4 w-4" />
+                <span className="text-sm font-medium">Edit Debt</span>
+              </button>
+              <button
+                onClick={() => setShowDeleteModal(true)}
+                className="flex items-center gap-2 bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+                aria-label="Delete debt"
+                data-tooltip-id="delete-debt-tooltip"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span className="text-sm font-medium">Delete Debt</span>
+              </button>
+              <button
+                onClick={handleViewLocation}
+                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                aria-label="View store location on map"
+                data-tooltip-id="view-location-tooltip"
+              >
+                <MapPin className="h-4 w-4" />
+                <span className="text-sm font-medium">View Location</span>
+              </button>
+            </div>
+          )}
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
-            {/* Avatar */}
             <div className="flex-shrink-0">
               <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-full bg-blue-100 flex items-center justify-center">
                 <User2 className="h-8 w-8 sm:h-10 sm:w-10 text-blue-600" />
               </div>
             </div>
-            {/* Customer Details */}
             <div className="flex-1">
               <h2 className="text-xl sm:text-2xl font-semibold text-gray-800 mb-2">
                 {customer?.name || 'Unknown Customer'}
@@ -354,7 +351,6 @@ export default function DebtLogsPage() {
                   <p className="text-sm sm:text-base text-gray-700">{customer?.email || 'N/A'}</p>
                 </div>
               </div>
-              {/* Debt Details */}
               {debtDetails && (
                 <div className="mt-4 pt-4 border-t border-gray-200">
                   <h3 className="text-sm font-semibold text-gray-800 mb-2 flex items-center gap-2">
@@ -412,8 +408,7 @@ export default function DebtLogsPage() {
           </div>
         </div>
 
-        {/* Edit Modal */}
-        {showEditModal && (
+        {isAdmin && showEditModal && (
           <div 
             className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
             onClick={() => setShowEditModal(false)}
@@ -473,17 +468,6 @@ export default function DebtLogsPage() {
                     onChange={(e) => setEditForm({ ...editForm, dueDate: e.target.value })}
                   />
                 </div>
-                <div>
-                  <label className="text-sm text-gray-600">Amount</label>
-                  <input
-                    type="number"
-                    className="w-full px-3 py-2 border rounded-lg"
-                    value={editForm.amount}
-                    onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })}
-                    min="0"
-                    step="0.01"
-                  />
-                </div>
               </div>
 
               <div className="flex gap-2 justify-end mt-4">
@@ -504,8 +488,7 @@ export default function DebtLogsPage() {
           </div>
         )}
 
-        {/* Delete Confirmation Modal */}
-        {showDeleteModal && (
+        {isAdmin && showDeleteModal && (
           <div 
             className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
             onClick={() => setShowDeleteModal(false)}
@@ -541,7 +524,6 @@ export default function DebtLogsPage() {
           </div>
         )}
 
-        {/* Payment Logs Section */}
         <div className="bg-white rounded-xl shadow-lg p-6">
           <h2 className="text-xl font-semibold text-gray-800 mb-4">Payment History</h2>
           {paymentLogs.length === 0 ? (
@@ -606,7 +588,7 @@ export default function DebtLogsPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <span className={`text-sm font-medium px-2 py-1 rounded ${getPaymentMethodColor(log.paymentMethod)} ${log.isDuplicate ? 'line-through' : ''}`}>
-                        Method: {log.paymentMethod || 'N/A'}
+                        Method: {formatPaymentMethod(log.paymentMethod)}
                       </span>
                     </div>
                     {log.isDuplicate && (
@@ -620,6 +602,35 @@ export default function DebtLogsPage() {
             </div>
           )}
         </div>
+
+        {isAdmin && (
+          <>
+            <Tooltip
+              id="edit-debt-tooltip"
+              place="top"
+              effect="solid"
+              style={{ backgroundColor: '#333', color: '#fff', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' }}
+            >
+              Edit debt details
+            </Tooltip>
+            <Tooltip
+              id="delete-debt-tooltip"
+              place="top"
+              effect="solid"
+              style={{ backgroundColor: '#333', color: '#fff', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' }}
+            >
+              Delete this debt
+            </Tooltip>
+            <Tooltip
+              id="view-location-tooltip"
+              place="top"
+              effect="solid"
+              style={{ backgroundColor: '#333', color: '#fff', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' }}
+            >
+              View store location on map
+            </Tooltip>
+          </>
+        )}
       </div>
     </div>
   );

@@ -69,7 +69,7 @@ const paymentSchema = Joi.object({
     otherwise: Joi.optional()
   }),
   transactionCode: Joi.when('paymentMethod', {
-    is: 'bank',
+    is: Joi.alternatives().try('mpesa', 'bank'),
     then: Joi.string().min(3).max(50).required(),
     otherwise: Joi.optional()
   })

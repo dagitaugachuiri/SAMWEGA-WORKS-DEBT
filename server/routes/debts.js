@@ -264,7 +264,7 @@ router.post('/:id/payment', authenticate, validate(schemas.payment), async (req,
       phoneNumber: phoneNumber,
       accountNumber: debt.debtCode,
       processedAt: new Date(),
-      manualProcessed: paymentMethod === 'mpesa' ? true : false,
+      manualProcessed: true,
       createdBy: createdBy
     };
 
@@ -276,6 +276,8 @@ router.post('/:id/payment', authenticate, validate(schemas.payment), async (req,
     } else if (paymentMethod === 'bank') {
       paymentLogData.bankName = bankName;
       paymentLogData.transactionCode = transactionCode;
+    }else if (paymentMethod === 'mpesa') {
+      paymentLogData.transactionCode = transactionCode; // For mpesa, use transactionCode as transactionId
     }
 
     await addDoc(collection(db, 'payment_logs'), paymentLogData);

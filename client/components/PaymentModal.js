@@ -69,8 +69,13 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
       errors.paymentMethod = 'Payment method is required';
     }
 
-    if (paymentMethod === 'mpesa' && !phoneNumber.match(/^\+254[17]\d{8}$/)) {
-      errors.phoneNumber = 'Invalid phone number format (+254XXXXXXXXX)';
+    if (paymentMethod === 'mpesa') {
+      if (!phoneNumber.match(/^\+254[17]\d{8}$/)) {
+        errors.phoneNumber = 'Invalid phone number format (+254XXXXXXXXX)';
+      }
+      if (!transactionCode) {
+        errors.transactionCode = 'Transaction code is required';
+      }
     }
 
     if (paymentMethod === 'cheque') {
@@ -125,6 +130,9 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
         amount: parseFloat(formData.get('amount')),
         paymentMethod: formData.get('paymentMethod'),
         phoneNumber: formData.get('phoneNumber') || debt.storeOwner.phoneNumber,
+        ...(formData.get('paymentMethod') === 'mpesa' && {
+          transactionCode: formData.get('transactionCode')?.trim(),
+        }),
         ...(formData.get('paymentMethod') === 'cheque' && {
           chequeNumber: formData.get('chequeNumber')?.trim(),
           bankName: formData.get('bankName')?.trim(),
@@ -227,21 +235,39 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
             </div>
 
             <div ref={mpesaDetailsRef} className="mpesa-details hidden" data-payment-method="mpesa">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Phone Number
-              </label>
-              <input
-                type="text"
-                name="phoneNumber"
-                className={`input-field w-full p-2 border rounded ${formErrors.phoneNumber ? 'border-red-500' : ''}`}
-                placeholder="+254XXXXXXXXX"
-                defaultValue={debt.storeOwner.phoneNumber}
-                required={paymentMethod === 'mpesa'}
-                disabled={paymentMethod !== 'mpesa'}
-              />
-              {formErrors.phoneNumber && (
-                <p className="text-red-500 text-sm mt-1">{formErrors.phoneNumber}</p>
-              )}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Phone Number
+                </label>
+                <input
+                  type="text"
+                  name="phoneNumber"
+                  className={`input-field w-full p-2 border rounded ${formErrors.phoneNumber ? 'border-red-500' : ''}`}
+                  placeholder="+254XXXXXXXXX"
+                  defaultValue={debt.storeOwner.phoneNumber}
+                  required={paymentMethod === 'mpesa'}
+                  disabled={paymentMethod !== 'mpesa'}
+                />
+                {formErrors.phoneNumber && (
+                  <p className="text-red-500 text-sm mt-1">{formErrors.phoneNumber}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1 mt-2">
+                  Transaction Code
+                </label>
+                <input
+                  type="text"
+                  name="transactionCode"
+                  className={`input-field w-full p-2 border rounded ${formErrors.transactionCode ? 'border-red-500' : ''}`}
+                  placeholder="Enter transaction code"
+                  required={paymentMethod === 'mpesa'}
+                  disabled={paymentMethod !== 'mpesa'}
+                />
+                {formErrors.transactionCode && (
+                  <p className="text-red-500 text-sm mt-1">{formErrors.transactionCode}</p>
+                )}
+              </div>
             </div>
 
             <div ref={bankDetailsRef} className="bank-details hidden" data-payment-method="bank">

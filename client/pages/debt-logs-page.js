@@ -561,14 +561,14 @@ export default function DebtLogsPage() {
                         Processed: {formatTimestamp(log.processedAt)}
                       </span>
                     </div>
-                    {log.paymentMethod === 'bank' && log.manualProcessed && log.transactionCode && (
+                 
                       <div className="flex items-center gap-2 mb-1">
                         <FileText className="h-4 w-4 text-gray-400" />
                         <span className={`text-sm text-gray-600 ${log.isDuplicate ? 'line-through' : ''}`}>
                           Transaction Code: {log.transactionCode}
                         </span>
                       </div>
-                    )}
+                  
                     <div className="flex items-center gap-2 mb-1">
                       {processingType.icon}
                       <span

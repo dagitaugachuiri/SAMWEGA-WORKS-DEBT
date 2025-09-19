@@ -16,6 +16,7 @@ const debtRoutes = require('./routes/debts');
 const testRoutes = require('./routes/test');
 const paymentRoutes = require('./routes/payments');
 const smsRoutes = require('./routes/sms');
+const customerRoutes = require('./routes/customers');
 const { errorHandler } = require('./middleware/errorHandler');
 const smsService = require('./services/sms');
 
@@ -58,6 +59,7 @@ app.use('/api/debts', debtRoutes);
 app.use('/api/test', testRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/sms', smsRoutes);
+app.use('/api/customers', customerRoutes);
 
 
 // Health check endpoint

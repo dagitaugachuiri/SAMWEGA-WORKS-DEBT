@@ -1,5 +1,5 @@
 const express = require('express');
-const { collection, addDoc, getDocs, query, where, orderBy, limit, startAfter, doc, getDoc, updateDoc } = require('firebase/firestore');
+const { collection, addDoc, getDocs, query, where, orderBy, limit, startAfter, doc, getDoc, updateDoc, setDoc, getFirestore, arrayUnion } = require('firebase/firestore');
 const { getFirestoreApp } = require('../services/firebase');
 const { authenticate } = require('../middleware/auth');
 const { validate, schemas } = require('../middleware/validation');
@@ -30,17 +30,23 @@ const generateDebtCode = async () => {
   return code;
 };
 
-// Create new debt
+// POST /debts - Create debt and update/create customer records
 router.post('/', authenticate, validate(schemas.debt), async (req, res) => {
   try {
     console.log('POST /debts request body:', JSON.stringify(req.body, null, 2));
-    const db = getFirestoreApp();
+    const db = getFirestore();
     const userId = req.user.uid;
+
+    // Normalize phone number if storeOwner is provided
+    let normalizedPhoneNumber;
+    if (req.body.storeOwner && req.body.storeOwner.phoneNumber) {
+      normalizedPhoneNumber = req.body.storeOwner.phoneNumber.replace(/\s/g, '');
+    }
 
     // Generate unique debt code
     const debtCode = await generateDebtCode();
 
-    // Create debt record
+    // Create debt record, preserving original flexibility with req.body
     const debtData = {
       ...req.body,
       userId,
@@ -50,39 +56,86 @@ router.post('/', authenticate, validate(schemas.debt), async (req, res) => {
       remainingAmount: Number(req.body.amount),
       createdAt: new Date(),
       lastUpdatedAt: new Date(),
-      manualPaymentRequested: false // Initialize manual payment flag
+      manualPaymentRequested: false,
+      ...(req.body.storeOwner && normalizedPhoneNumber
+        ? { storeOwner: { ...req.body.storeOwner, phoneNumber: normalizedPhoneNumber } }
+        : {}),
     };
     console.log('Debt data to save:', JSON.stringify(debtData, null, 2));
 
-    const docRef = await addDoc(collection(db, 'debts'), debtData);
-    const debt = { id: docRef.id, ...debtData };
-    console.log('Debt created with ID:', docRef.id);
+    const debtRef = await addDoc(collection(db, 'debts'), debtData);
+    const debtId = debtRef.id;
+    console.log('Debt created with ID:', debtId);
 
-    // Send SMS notification
-    const smsMessage = smsService.generateInvoiceSMS(debt);
-    console.log('SMS message:', smsMessage);
-    const smsResult = await smsService.sendSMS(
-      debt.storeOwner.phoneNumber,
-      smsMessage,
-      userId,
-      docRef.id
-    );
-    console.log('SMS result:', JSON.stringify(smsResult, null, 2));
+      // Create or update customer record if storeOwner and store are provided
+    let customerData = null;
+    if (req.body.storeOwner && normalizedPhoneNumber && req.body.store) {
+      const { name } = req.body.storeOwner;
+      const { name: shopName, location } = req.body.store;
+      const customerRef = doc(db, 'customers', normalizedPhoneNumber);
+      const customerSnap = await getDoc(customerRef);
+
+      if (customerSnap.exists()) {
+        // Update existing customer: only append debtCode and update lastUpdatedAt
+        await updateDoc(customerRef, {
+          debtIds: arrayUnion(debtCode),
+          lastUpdatedAt: new Date(),
+        });
+        console.log('Customer debtIds updated for ID:', normalizedPhoneNumber);
+        // Fetch updated customer data for response
+        const updatedCustomerSnap = await getDoc(customerRef);
+        customerData = {
+          phoneNumber: normalizedPhoneNumber,
+          ...updatedCustomerSnap.data(),
+        };
+      } else {
+        // Create new customer
+        customerData = {
+          phoneNumber: normalizedPhoneNumber,
+          name,
+          shopName,
+          location,
+          debtIds: [debtCode],
+          createdBy: userId,
+          createdAt: new Date(),
+          lastUpdatedAt: new Date(),
+        };
+        // Remove undefined fields to prevent Firebase error
+        Object.keys(customerData).forEach(key => customerData[key] === undefined && delete customerData[key]);
+        console.log('Customer data to save:', JSON.stringify(customerData, null, 2));
+        await setDoc(customerRef, customerData);
+        console.log('Customer record created with ID:', normalizedPhoneNumber);
+      }
+    }
+
+    // Send SMS notification if storeOwner phoneNumber is available
+    let smsResult = { data: null };
+    if (normalizedPhoneNumber) {
+      const smsMessage = smsService.generateInvoiceSMS(debtData);
+      console.log('SMS message:', smsMessage);
+      smsResult = await smsService.sendSMS(
+        normalizedPhoneNumber,
+        smsMessage,
+        userId,
+        debtId
+      );
+      console.log('SMS result:', JSON.stringify(smsResult, null, 2));
+    }
 
     res.status(201).json({
       success: true,
-      data: debt,
+      data: { id: debtId, ...debtData },
+      ...(customerData ? { customer: { id: normalizedPhoneNumber, ...customerData } } : {}),
       sms: smsResult.data,
     });
   } catch (error) {
-    console.error('Create debt error:', error.message, error.stack);
+    console.error('Create debt/customer error:', error.message, error.stack);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to create debt record',
+      error: error.message || 'Failed to create debt or customer record',
     });
   }
 });
-
 // Get all debts for authenticated user
 router.get('/', authenticate, async (req, res) => {
   try {
@@ -92,10 +145,14 @@ router.get('/', authenticate, async (req, res) => {
     // Query parameters for filtering and pagination
     const { status, limit: limitParam = '50', offset = '0', sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
 
+    // Get current timestamp in seconds for overdue comparison
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+
+    // Base query for user's debts
     let q = query(collection(db, 'debts'), where('userId', '==', userId));
 
-    // Apply status filter if provided
-    if (status && ['pending', 'paid', 'partially_paid', 'overdue'].includes(status)) {
+    // Apply status filter if provided (excluding overdue)
+    if (status && ['pending', 'paid', 'partially_paid'].includes(status)) {
       q = query(q, where('status', '==', status));
     }
 
@@ -116,28 +173,45 @@ router.get('/', authenticate, async (req, res) => {
       }
     }
 
+    // Fetch debts
     const snapshot = await getDocs(q);
-    const debts = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-      createdAt: doc.data().createdAt,
-      lastUpdatedAt: doc.data().lastUpdatedAt,
-      lastPaymentDate: doc.data().lastPaymentDate || null,
-    }));
+    const debts = snapshot.docs.map(doc => {
+      const data = doc.data();
+      const isOverdue = data.dueDate && data.dueDate.seconds && data.dueDate.seconds < currentTimestamp && (data.remainingAmount || 0) > 0;
+      return {
+        id: doc.id,
+        ...data,
+        status: isOverdue ? 'overdue' : data.status,
+        createdAt: data.createdAt,
+        lastUpdatedAt: data.lastUpdatedAt,
+        lastPaymentDate: data.lastPaymentDate || null,
+      };
+    });
+
+    // Filter debts for overdue status if requested
+    const filteredDebts = status === 'overdue' ? debts.filter(debt => debt.status === 'overdue') : debts;
 
     // Get total count for pagination info
     const totalQuery = query(collection(db, 'debts'), where('userId', '==', userId));
     const totalSnapshot = await getDocs(totalQuery);
-    const total = totalSnapshot.size;
+    let total;
+    if (status === 'overdue') {
+      total = totalSnapshot.docs.filter(doc => {
+        const data = doc.data();
+        return data.dueDate && data.dueDate.seconds && data.dueDate.seconds < currentTimestamp && (data.remainingAmount || 0) > 0;
+      }).length;
+    } else {
+      total = totalSnapshot.size;
+    }
 
     res.json({
       success: true,
-      data: debts,
+      data: filteredDebts,
       pagination: {
         total,
         limit: limitNum,
         offset: offsetNum,
-        hasMore: offsetNum + debts.length < total,
+        hasMore: offsetNum + filteredDebts.length < total,
       },
     });
   } catch (error) {
@@ -352,8 +426,7 @@ router.post('/:debtId/manual-request', authenticate, async (req, res) => {
 
     const smsMessage = `Manual payment requested for debt #${debt.debtCode}. Store: ${debt.store.name}, Owner: ${debt.storeOwner.name}, Amount: KES ${debt.amount}, Due: ${new Date(debt.dueDate).toLocaleDateString('en-GB')}. Please approve.`;
     await smsService.sendSMS('+254715046894', smsMessage, userId, debtId);
-    await smsService.sendSMS('+254743466032', smsMessage, userId, debtId);
-    await smsService.sendSMS('+254720838611', smsMessage, userId, debtId);
+  
     await updateDoc(debtRef, { manualPaymentRequested: true });
 
     res.json({ success: true, data: { manualPaymentRequested: true } });
@@ -675,8 +748,7 @@ router.post('/reconcile', authenticate, async (req, res) => {
       const smsMessage = `Reconciliation completed: ${reconciliationLog.totalDuplicatesFound} duplicate payments found, KES ${reconciliationLog.totalAmountCorrected}. Please review the debt details.`;
       await Promise.all([
         smsService.sendSMS('+254715046894', smsMessage, userId, 'reconciliation'),
-        smsService.sendSMS('+254743466032', smsMessage, userId, 'reconciliation'),
-        smsService.sendSMS('+254720838611', smsMessage, userId, 'reconciliation')
+        smsService.sendSMS('+254743466032', smsMessage, userId, 'reconciliation')
       ]);
     }
 

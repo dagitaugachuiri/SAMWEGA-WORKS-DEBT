@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { toast } from 'react-hot-toast';
-import { CreditCard, Calendar, DollarSign, User, Cpu, AlertTriangle, Mail, Phone, User2, ArrowLeft, Store, Truck, MapPin, Edit, Trash2, FileText } from 'lucide-react';
+import { CreditCard, Calendar, DollarSign, User, Cpu, AlertTriangle, Mail, Phone, User2, ArrowLeft, Store, Truck, MapPin, Edit, Trash2, FileText, Banknote } from 'lucide-react';
 import { Tooltip } from 'react-tooltip';
 import { getFirestore, collection, getDocs, doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { auth, app } from '../lib/firebase';
@@ -314,15 +314,7 @@ export default function DebtLogsPage() {
                 <Trash2 className="h-4 w-4" />
                 <span className="text-sm font-medium">Delete Debt</span>
               </button>
-              <button
-                onClick={handleViewLocation}
-                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                aria-label="View store location on map"
-                data-tooltip-id="view-location-tooltip"
-              >
-                <MapPin className="h-4 w-4" />
-                <span className="text-sm font-medium">View Location</span>
-              </button>
+             
             </div>
           )}
           <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
@@ -568,7 +560,14 @@ export default function DebtLogsPage() {
                           Transaction Code: {log.transactionCode}
                         </span>
                       </div>
-                  
+                  {(log.paymentMethod === 'bank' || log.paymentMethod === 'cheque') && (
+                      <div className="flex items-center gap-2 mb-1">
+                        <Banknote className="h-4 w-4 text-gray-400" />
+                        <span className={`text-sm text-gray-600 ${log.isDuplicate ? 'line-through' : ''}`}>
+                          Bank Name: {log.bankName || 'N/A'}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 mb-1">
                       {processingType.icon}
                       <span

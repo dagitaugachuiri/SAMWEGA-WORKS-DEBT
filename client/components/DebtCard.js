@@ -143,6 +143,10 @@ export default function DebtCard({ debt, onPaymentClick, onRefresh, onCardClick 
           <span className="text-sm text-gray-600">Created On: {formatTimestamp(debt.createdAt?.seconds)  || 'N/A'}</span>
         </div>
         <div className="flex items-center gap-2 mb-2">
+          <Calendar className="h-4 w-4 text-gray-400" />
+          <span className="text-sm text-gray-600">Due On: {formatTimestamp(debt.dueDate?.seconds)  || 'N/A'}</span>
+        </div>
+        <div className="flex items-center gap-2 mb-2">
           <User className="h-2 w-2 text-gray-400" />
           <span className="text-xs text-gray-600">Created By {debt.createdBy || 'N/A'}</span>
         </div>

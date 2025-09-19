@@ -100,6 +100,17 @@ export const apiService = {
       }
     }
   },
+ // Customer management
+ customers: {
+    // Get all customers
+    getAll: (params = {}) => api.get('/api/customers', { params }),
+
+    // Get specific customer by phoneNumber
+    getById: (phoneNumber) => api.get(`/api/customers/${phoneNumber}`),
+
+    // Send custom message to multiple customers
+    sendCustomMessage: (data) => api.post('/api/customers/send-message', data),
+  },
 
   // Payment management
   payments: {

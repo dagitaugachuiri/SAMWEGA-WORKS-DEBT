@@ -125,8 +125,8 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
 
     try {
       const paymentData = {
-        createdBy: creatorName, // Store UID for consistency
-        createdByName: creatorName, // Store name for display
+        createdBy: creatorName,
+        createdByName: creatorName,
         amount: parseFloat(formData.get('amount')),
         paymentMethod: formData.get('paymentMethod'),
         phoneNumber: formData.get('phoneNumber') || debt.storeOwner.phoneNumber,
@@ -169,6 +169,15 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
       currency: 'KES',
     }).format(amount);
   };
+
+  const bankOptions = [
+    'Equity',
+    'Old KCB',
+    'New KCB',
+    'Old Absa',
+    'New Absa',
+    'Family',
+  ];
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -275,14 +284,17 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Bank Name
                 </label>
-                <input
-                  type="text"
+                <select
                   name="bankName"
-                  className={`input-field w-full p-2 border rounded ${formErrors.bankName ? 'border-red-500' : ''}`}
-                  placeholder="Enter bank name"
+                  className={`select-field w-full p-2 border rounded ${formErrors.bankName ? 'border-red-500' : ''}`}
                   required={paymentMethod === 'bank'}
                   disabled={paymentMethod !== 'bank'}
-                />
+                >
+                  <option value="">Select bank</option>
+                  {bankOptions.map((bank) => (
+                    <option key={bank} value={bank}>{bank}</option>
+                  ))}
+                </select>
                 {formErrors.bankName && (
                   <p className="text-red-500 text-sm mt-1">{formErrors.bankName}</p>
                 )}
@@ -326,14 +338,17 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Bank Name
                 </label>
-                <input
-                  type="text"
+                <select
                   name="bankName"
-                  className={`input-field w-full p-2 border rounded ${formErrors.bankName ? 'border-red-500' : ''}`}
-                  placeholder="Enter bank name"
+                  className={`select-field w-full p-2 border rounded ${formErrors.bankName ? 'border-red-500' : ''}`}
                   required={paymentMethod === 'cheque'}
                   disabled={paymentMethod !== 'cheque'}
-                />
+                >
+                  <option value="">Select bank</option>
+                  {bankOptions.map((bank) => (
+                    <option key={bank} value={bank}>{bank}</option>
+                  ))}
+                </select>
                 {formErrors.bankName && (
                   <p className="text-red-500 text-sm mt-1">{formErrors.bankName}</p>
                 )}

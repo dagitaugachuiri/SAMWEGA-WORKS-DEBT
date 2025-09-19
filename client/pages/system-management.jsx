@@ -85,10 +85,10 @@ export default function SystemManagement() {
                 </a>
               </p>
               <p className="text-gray-600">
-                <span className="font-medium">Sample Credentials:</span>
+                <span className="font-medium">Credentials:</span>
               </p>
-              <p className="text-gray-600">Email: admin@textsms.co.ke</p>
-              <p className="text-gray-600">Password: samplePass123!</p>
+              <p className="text-gray-600">Username: eApps</p>
+              <p className="text-gray-600">Password: RfBcDX</p>
             </div>
           </div>
 
@@ -112,11 +112,7 @@ export default function SystemManagement() {
                   View Render Dashboard
                 </a>
               </p>
-              <p className="text-gray-600">
-                <span className="font-medium">Sample Credentials:</span>
-              </p>
-              <p className="text-gray-600">Email: admin@samwega.com</p>
-              <p className="text-gray-600">Password: renderPass456!</p>
+           
             </div>
           </div>
 
@@ -140,11 +136,7 @@ export default function SystemManagement() {
                   View Firebase Console
                 </a>
               </p>
-              <p className="text-gray-600">
-                <span className="font-medium">Sample Credentials:</span>
-              </p>
-              <p className="text-gray-600">Email: firebase@samwega.com</p>
-              <p className="text-gray-600">Password: firebasePass789!</p>
+          
             </div>
           </div>
         </div>

@@ -1,6 +1,5 @@
-
 const { getFirestoreApp } = require('./firebase');
-const { collection, query, where, limit, getDocs, doc, updateDoc, addDoc, orderBy, getDoc, setDoc } = require('firebase/firestore');
+const { collection, query, where, limit, getDocs, doc, updateDoc, addDoc, orderBy, getDoc, setDoc, writeBatch } = require('firebase/firestore');
 const smsService = require('./sms');
 
 class SMSProcessor {
@@ -194,67 +193,221 @@ class SMSProcessor {
         };
       }
 
-      // Find debt by account number (debtCode)
+      // Primary Lookup: Find debt by account number (debtCode)
       const debtsRef = collection(this.db, 'debts');
       const debtQuery = query(debtsRef, where('debtCode', '==', accountNumber), limit(1));
       const debtSnapshot = await getDocs(debtQuery);
 
-      if (debtSnapshot.empty) {
-        console.error('No debt found for account number:', accountNumber);
+      if (!debtSnapshot.empty) {
+        // Original implementation: Process single debt
+        const debtDoc = debtSnapshot.docs[0];
+        const debt = { id: debtDoc.id, ...debtDoc.data() };
+
+        console.log('Found debt by debtCode:', { id: debt.id, debtCode: debt.debtCode, amount: debt.amount, paidAmount: debt.paidAmount });
+
+        // Calculate new payment amounts
+        const currentPaidAmount = debt.paidAmount || 0;
+        const newPaidAmount = currentPaidAmount + amount;
+        const newRemainingAmount = Math.max(0, debt.amount - newPaidAmount);
+        
+        // Determine new status
+        let newStatus = debt.status;
+        if (newRemainingAmount === 0) {
+          newStatus = 'paid';
+        } else if (newPaidAmount > 0) {
+          newStatus = 'partially_paid';
+        }
+
+        // Update debt record
+        const updateData = {
+          paidAmount: newPaidAmount,
+          paidPaymentMethod: 'mpesa_paybill',
+          remainingAmount: newRemainingAmount,
+          status: newStatus,
+          lastPaymentDate: transactionDate || new Date(),
+          lastUpdatedAt: new Date()
+        };
+
+        const debtRef = doc(this.db, 'debts', debt.id);
+        await updateDoc(debtRef, updateData);
+
+        console.log('Updated debt:', { 
+          id: debt.id, 
+          newPaidAmount, 
+          newRemainingAmount, 
+          newStatus 
+        });
+
+        // Log the payment
+        const paymentLog = {
+          debtId: debt.id,
+          debtCode: debt.debtCode,
+          amount: amount,
+          paymentMethod: 'mpesa_paybill',
+          reference: transactionId || `SMS_${Date.now()}`,
+          phoneNumber: phoneNumber,
+          accountNumber: accountNumber,
+          senderName: senderName,
+          transactionDate: transactionDate || new Date(),
+          success: true,
+          transactionId: transactionId,
+          smsData: smsData,
+          createdAt: new Date()
+        };
+
+        await this.logPayment(paymentLog);
+
+        // Send confirmation SMS to store owner
+        if (debt.storeOwner?.phoneNumber) {
+          try {
+            const confirmationMessage = smsService.generatePaymentConfirmationSMS(
+              debt,
+              amount
+            );
+
+            await smsService.sendSMS(
+              debt.storeOwner.phoneNumber,
+              confirmationMessage,
+              debt.userId,
+              'payment_confirmation'
+            );
+
+            console.log('✅ Payment confirmation SMS sent to:', debt.storeOwner.phoneNumber);
+          } catch (smsError) {
+            console.error('❌ Error sending confirmation SMS:', smsError);
+            // Don't throw error - payment was still successful
+          }
+        }
+
+        // Add to processed transactions if transactionId exists
+        if (transactionId) {
+          const transactionRef = doc(this.db, 'processedTransactions', transactionId);
+          await setDoc(transactionRef, {
+            transactionId: transactionId,
+            processedAt: new Date(),
+            debtId: debt.id,
+            amount: amount,
+            smsData: smsData
+          });
+          console.log('Transaction marked as processed in Firestore:', transactionId);
+        }
+
+        return {
+          success: true,
+          message: 'Payment processed successfully',
+          debt: {
+            id: debt.id,
+            debtCode: debt.debtCode,
+            originalAmount: debt.amount,
+            previousPaidAmount: currentPaidAmount,
+            newPaidAmount: newPaidAmount,
+            newRemainingAmount: newRemainingAmount,
+            newStatus: newStatus
+          },
+          payment: {
+            amount: amount,
+            transactionId: transactionId,
+            phoneNumber: phoneNumber,
+            senderName: senderName
+          },
+          confirmationSent: !!debt.storeOwner?.phoneNumber
+        };
+      }
+
+      // Fallback Lookup: Find customer by account number (phone number)
+      const normalizedPhoneNumber = accountNumber.startsWith('0') ? `+254${accountNumber.slice(1)}` : accountNumber;
+      const customerRef = doc(this.db, 'customers', normalizedPhoneNumber);
+      const customerSnap = await getDoc(customerRef);
+
+      if (!customerSnap.exists()) {
+        console.error('No customer found for phone number:', normalizedPhoneNumber);
         
         // Log unmatched transaction
-        await this.logUnmatchedTransaction(smsData, 'No matching debt found');
+        await this.logUnmatchedTransaction(smsData, 'No matching customer found');
         
         return {
           success: false,
-          error: 'No debt found for this account number',
+          error: 'No customer found for this phone number',
           accountNumber
         };
       }
 
-      const debtDoc = debtSnapshot.docs[0];
-      const debt = { id: debtDoc.id, ...debtDoc.data() };
+      const customerData = customerSnap.data();
+      const { name, debtIds, createdBy } = customerData;
 
-      console.log('Found debt:', { id: debt.id, debtCode: debt.debtCode, amount: debt.amount, paidAmount: debt.paidAmount });
-
-      // Calculate new payment amounts
-      const currentPaidAmount = debt.paidAmount || 0;
-      const newPaidAmount = currentPaidAmount + amount;
-      const newRemainingAmount = Math.max(0, debt.amount - newPaidAmount);
-      
-      // Determine new status
-      let newStatus = debt.status;
-      if (newRemainingAmount === 0) {
-        newStatus = 'paid';
-      } else if (newPaidAmount > 0) {
-        newStatus = 'partially_paid';
+      if (!debtIds || debtIds.length === 0) {
+        console.log('No debts found for customer:', normalizedPhoneNumber);
+        await this.logUnmatchedTransaction(smsData, 'No debts found for this customer');
+        return {
+          success: false,
+          error: 'No debts found for this customer'
+        };
       }
 
-      // Update debt record
-      const updateData = {
-        paidAmount: newPaidAmount,
-        paidPaymentMethod: 'mpesa_paybill',
-        remainingAmount: newRemainingAmount,
-        status: newStatus,
-        lastPaymentDate: transactionDate || new Date(),
-        lastUpdatedAt: new Date()
-      };
+      // Fetch all debts for this customer
+      const debtPromises = debtIds.map(id => getDoc(doc(this.db, 'debts', id)));
+      const debtDocs = await Promise.all(debtPromises);
+      const customerDebts = debtDocs
+        .filter(doc => doc.exists())
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0)); // Sort by creation date (oldest first)
 
-      const debtRef = doc(this.db, 'debts', debt.id);
-      await updateDoc(debtRef, updateData);
+      console.log(`Found ${customerDebts.length} debts for customer ${normalizedPhoneNumber}:`, customerDebts.map(d => ({ id: d.id, debtCode: d.debtCode, remainingAmount: d.remainingAmount })));
 
-      console.log('Updated debt:', { 
-        id: debt.id, 
-        newPaidAmount, 
-        newRemainingAmount, 
-        newStatus 
-      });
+      // Apply payment sequentially to debts (oldest first)
+      let remainingPayment = amount;
+      const batch = writeBatch(this.db);
+      const updatedDebts = [];
 
-      // Log the payment
+      for (const debt of customerDebts) {
+        if (remainingPayment <= 0) break;
+
+        const currentPaidAmount = debt.paidAmount || 0;
+        const currentRemainingAmount = debt.remainingAmount || debt.amount;
+        const paymentToApply = Math.min(remainingPayment, currentRemainingAmount);
+        const newPaidAmount = currentPaidAmount + paymentToApply;
+        const newRemainingAmount = currentRemainingAmount - paymentToApply;
+
+        let newStatus = debt.status;
+        if (newRemainingAmount === 0) {
+          newStatus = 'paid';
+        } else if (newPaidAmount > 0 && debt.status !== 'paid') {
+          newStatus = 'partially_paid';
+        }
+
+        // Update debt record in batch
+        const debtRef = doc(this.db, 'debts', debt.id);
+        batch.update(debtRef, {
+          paidAmount: newPaidAmount,
+          paidPaymentMethod: 'mpesa_paybill',
+          remainingAmount: newRemainingAmount,
+          status: newStatus,
+          lastPaymentDate: transactionDate || new Date(),
+          lastUpdatedAt: new Date()
+        });
+
+        updatedDebts.push({
+          id: debt.id,
+          debtCode: debt.debtCode,
+          originalAmount: debt.amount,
+          previousPaidAmount: currentPaidAmount,
+          paymentApplied: paymentToApply,
+          newPaidAmount: newPaidAmount,
+          newRemainingAmount: newRemainingAmount,
+          newStatus: newStatus
+        });
+
+        remainingPayment -= paymentToApply;
+      }
+
+      // Commit batch update
+      await batch.commit();
+      console.log(`Payment applied to ${updatedDebts.length} debts, remaining payment: ${remainingPayment}`);
+
+      // Log the payment (single log for the transaction affecting multiple debts)
       const paymentLog = {
-        debtId: debt.id,
-        debtCode: debt.debtCode,
-        amount: amount,
+        debtIds: updatedDebts.map(d => d.id),
+        totalAmount: amount,
         paymentMethod: 'mpesa_paybill',
         reference: transactionId || `SMS_${Date.now()}`,
         phoneNumber: phoneNumber,
@@ -264,42 +417,39 @@ class SMSProcessor {
         success: true,
         transactionId: transactionId,
         smsData: smsData,
+        customerId: normalizedPhoneNumber,
+        customerName: name,
         createdAt: new Date()
       };
 
       await this.logPayment(paymentLog);
 
-      // After successful payment processing and debt update
-      if (debt.storeOwner?.phoneNumber) {
+      // Send confirmation SMS to the customer
+      if (phoneNumber) {
         try {
-          // Generate and send confirmation SMS
-          const confirmationMessage = smsService.generatePaymentConfirmationSMS(
-            debt,
-            amount
-          );
+          const confirmationMessage = smsService.generatePaymentConfirmationSMS({
+            storeOwner: { name: name, phoneNumber: phoneNumber },
+            amount: amount,
+            debtCode: updatedDebts.length > 1 ? 'Multiple Debts' : updatedDebts[0]?.debtCode,
+            remainingAmount: updatedDebts.reduce((sum, d) => sum + d.newRemainingAmount, 0)
+          });
 
-          await smsService.sendSMS(
-            debt.storeOwner.phoneNumber,
-            confirmationMessage,
-            debt.userId,
-            debt.id
-          );
-
-          console.log('✅ Payment confirmation SMS sent to:', debt.storeOwner.phoneNumber);
+          await smsService.sendSMS(phoneNumber, confirmationMessage, createdBy, 'payment_confirmation');
+          console.log('✅ Payment confirmation SMS sent to:', phoneNumber);
         } catch (smsError) {
           console.error('❌ Error sending confirmation SMS:', smsError);
           // Don't throw error - payment was still successful
         }
       }
 
-      // Add to processed transactions if transactionId exists
+      // Mark transaction as processed if transactionId exists
       if (transactionId) {
         const transactionRef = doc(this.db, 'processedTransactions', transactionId);
         await setDoc(transactionRef, {
           transactionId: transactionId,
           processedAt: new Date(),
-          debtId: debt.id,
-          amount: amount,
+          debtIds: updatedDebts.map(d => d.id),
+          totalAmount: amount,
           smsData: smsData
         });
         console.log('Transaction marked as processed in Firestore:', transactionId);
@@ -307,23 +457,18 @@ class SMSProcessor {
 
       return {
         success: true,
-        message: 'Payment processed successfully',
-        debt: {
-          id: debt.id,
-          debtCode: debt.debtCode,
-          originalAmount: debt.amount,
-          previousPaidAmount: currentPaidAmount,
-          newPaidAmount: newPaidAmount,
-          newRemainingAmount: newRemainingAmount,
-          newStatus: newStatus
-        },
+        message: 'Payment processed successfully across multiple debts',
+        customer: { name, phoneNumber: normalizedPhoneNumber },
+        debts: updatedDebts,
         payment: {
           amount: amount,
           transactionId: transactionId,
           phoneNumber: phoneNumber,
-          senderName: senderName
+          senderName: senderName,
+          appliedToDebts: updatedDebts.length,
+          remainingPayment: remainingPayment
         },
-        confirmationSent: true
+        confirmationSent: !!phoneNumber
       };
 
     } catch (error) {

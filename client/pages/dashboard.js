@@ -51,6 +51,8 @@ export default function Dashboard() {
 
   const fetchDebts = async () => {
     try {
+      console.log('Fetching debts with status filter:', statusFilter);
+      
       setLoading(true);
       const response = await apiService.debts.getAll({
         status: statusFilter === 'all' ? undefined : statusFilter,
@@ -146,7 +148,14 @@ export default function Dashboard() {
     }
     router.push('/system-management');
   };
-
+  const handleManageCustomers = () => {
+    setShowUserMenu(false);
+    if (isDisabled) {
+      toast.error('Your account is disabled. Please contact support.');
+      return;
+    }
+    router.push('/customers');
+  };
   const handleManageSupplierDebts = () => {
     setShowUserMenu(false);
     if (isDisabled) {
@@ -272,7 +281,14 @@ export default function Dashboard() {
                   <Package className="h-4 w-4" />
                   <span>Manage Supplier Debts</span>
                 </button>
-                
+                 <button
+                  data-tooltip-id="customers-tooltip"
+                  onClick={handleManageCustomers}
+                  className="btn-secondary flex items-center space-x-2"
+                >
+                  <Users className="h-4 w-4" />
+                  <span>Customers</span>
+                </button>
                 <div className="relative">
                   <button
                     data-tooltip-id="user-menu-tooltip"

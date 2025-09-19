@@ -89,7 +89,7 @@ router.post('/', authenticate, validate(schemas.debt), async (req, res) => {
           ...updatedCustomerSnap.data(),
         };
       } else {
-        // Create new customer
+        // Create new customer 
         customerData = {
           phoneNumber: normalizedPhoneNumber,
           name,

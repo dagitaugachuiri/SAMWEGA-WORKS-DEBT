@@ -640,4 +640,4 @@ class SMSProcessor {
   }
 }
 
-module.exports = new SMSProcessor();
+module.exports = new SMSProcessor(); 

@@ -45,9 +45,8 @@ app.use('/api/', limiter);
   
 // CORS configuration 
 app.use(cors({
-  origin:['https://smwoks-1.onrender.com','https://samwega-works-debt-mngmt.onrender.com','http://localhost:3000'], // Add your frontend domain
-  credentials: true,
-
+  origin: true, // Allows all origins
+  credentials: true // Allows credentials (cookies, authorization headers, etc.)
 }));
 
 // Body parsing middleware

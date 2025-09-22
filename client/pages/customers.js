@@ -31,12 +31,10 @@ export default function Customers() {
   const [searchTerm, setSearchTerm] = useState('');
   const [debtStatusFilter, setDebtStatusFilter] = useState('all');
   const [debtRange, setDebtRange] = useState({ min: '', max: '' });
-  const [debtCountFilter, setDebtCountFilter] = useState(''); // Changed to empty string for number input
+  const [debtCountFilter, setDebtCountFilter] = useState('');
   const [isDisabled, setIsDisabled] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState(null);
-  const [showDetailModal, setShowDetailModal] = useState(false);
   const [unmatchedDebtCodes, setUnmatchedDebtCodes] = useState([]);
-  const [unmatchedDebtTotal, setUnmatchedDebtTotal] = useState(null); // null indicates unknown total
+  const [unmatchedDebtTotal, setUnmatchedDebtTotal] = useState(null);
   const { user } = useAuth();
   const router = useRouter();
 
@@ -166,7 +164,6 @@ export default function Customers() {
         (debtRange.max ? customer.totalDebtOwed <= parseFloat(debtRange.max) : true)
       : true;
 
-    // Updated debt count filtering logic for number input
     const matchesDebtCount = debtCountFilter === '' || debtCountFilter === null
       ? true
       : customer.debtIds.length === parseInt(debtCountFilter);
@@ -208,8 +205,9 @@ export default function Customers() {
   };
 
   const handleCardClick = (customer) => {
-    setSelectedCustomer(customer);
-    setShowDetailModal(true);
+    // Serialize customer data to JSON and encode it for the query parameter
+    const customerData = JSON.stringify(customer);
+    router.push(`/customer-debts?customer=${encodeURIComponent(customerData)}`);
   };
 
   const handleOpenSendMessage = () => {
@@ -303,7 +301,6 @@ export default function Customers() {
               </div>
               <p className="text-xl font-bold mt-2">{calculateAverageDaysOverdue()}</p>
             </div>
-          
           </div>
 
           <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
@@ -434,7 +431,7 @@ export default function Customers() {
                   </div>
                   <div className="mt-4 flex justify-end">
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      View Details
+                      View Debt Details
                     </span>
                   </div>
                   <Tooltip
@@ -442,100 +439,13 @@ export default function Customers() {
                     place="top"
                     style={{ backgroundColor: '#333', color: '#fff', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' }}
                   >
-                    View {customer.name}'s details
+                    View {customer.name}'s debt details
                   </Tooltip>
                 </div>
               ))}
             </div>
           )}
         </main>
-
-        {showDetailModal && selectedCustomer && (
-          <div className="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl p-8 w-full max-w-3xl shadow-2xl max-h-[85vh] overflow-y-auto">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Customer Details</h2>
-                <button
-                  className="text-gray-500 hover:text-gray-700"
-                  onClick={() => setShowDetailModal(false)}
-                >
-                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h3 className="font-semibold text-lg mb-3 text-gray-700">Customer Information</h3>
-                  <div className="space-y-2 text-sm">
-                    <p><strong>Name:</strong> {selectedCustomer.name}</p>
-                    <p><strong>Phone:</strong> {selectedCustomer.phoneNumber}</p>
-                    <p><strong>Total Debts:</strong> {selectedCustomer.debtIds.length}</p>
-                    <p><strong>Total Owed:</strong> {formatCurrency(selectedCustomer.totalDebtOwed)}</p>
-                    <p><strong>Created By:</strong> {selectedCustomer.createdBy}</p>
-                    <p><strong>Created At:</strong> {formatTimestamp(selectedCustomer.createdAt)}</p>
-                    <p><strong>Last Updated:</strong> {formatTimestamp(selectedCustomer.lastUpdatedAt)}</p>
-                  </div>
-                </div>
-
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h3 className="font-semibold text-lg mb-3 text-gray-700">Store Information</h3>
-                  <div className="space-y-2 text-sm">
-                    <p><strong>Shop Name:</strong> {selectedCustomer.shopName || 'N/A'}</p>
-                    <p><strong>Location:</strong> {selectedCustomer.location || 'N/A'}</p>
-                  </div>
-                </div>
-
-                {selectedCustomer.debts?.length > 0 && (
-                  <div className="md:col-span-2 bg-gray-50 p-4 rounded-lg">
-                    <h3 className="font-semibold text-lg mb-3 text-gray-700">Debt Information</h3>
-                    <div className="space-y-2 text-sm">
-                      {selectedCustomer.debts.map(debt => (
-                        <div key={debt.debtCode} className="flex flex-col border-b border-gray-200 py-2">
-                          <div className="flex justify-between">
-                            <span>Debt #{debt.debtCode}</span>
-                            <span>{formatCurrency(debt.remainingAmount)}</span>
-                            <span className={`ml-4 px-2 py-1 rounded-full text-xs ${
-                              debt.status === 'overdue' ? 'bg-red-100 text-red-800' :
-                              debt.status === 'paid' ? 'bg-green-100 text-green-800' :
-                              debt.status === 'partially_paid' ? 'bg-yellow-100 text-yellow-800' :
-                              'bg-blue-100 text-blue-800'
-                            }`}>
-                              {debt.status}
-                            </span>
-                          </div>
-                          <div className="mt-1 text-gray-600">
-                            <p><strong>Amount:</strong> {formatCurrency(debt.amount)}</p>
-                            <p><strong>Paid Amount:</strong> {formatCurrency(debt.paidAmount)}</p>
-                            <p><strong>Due Date:</strong> {formatTimestamp(debt.dueDate)}</p>
-                            <p><strong>Date Issued:</strong> {formatTimestamp(debt.dateIssued)}</p>
-                            <p><strong>Last Payment:</strong> {debt.lastPaymentDate ? formatTimestamp(debt.lastPaymentDate) : 'N/A'}</p>
-                            <p><strong>Payment Method:</strong> {debt.paymentMethod || 'N/A'}</p>
-                            <p><strong>Sales Rep:</strong> {debt.salesRep || 'N/A'}</p>
-                            <p><strong>Vehicle Plate:</strong> {debt.vehiclePlate || 'N/A'}</p>
-                            <p><strong>Description:</strong> {debt.description || 'N/A'}</p>
-                            <p><strong>Store:</strong> {debt.store?.name || 'N/A'} ({debt.store?.location || 'N/A'})</p>
-                            <p><strong>Store Owner:</strong> {debt.storeOwner?.name || 'N/A'} ({debt.storeOwner?.phoneNumber || 'N/A'})</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-6 flex justify-end">
-                <button
-                  className="btn-primary"
-                  onClick={() => setShowDetailModal(false)}
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         <Tooltip
           id="search-tooltip"
@@ -602,4 +512,5 @@ export default function Customers() {
         </Tooltip>
       </div>
     </Layout>
-  );}
+  );
+}

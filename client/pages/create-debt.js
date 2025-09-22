@@ -5,7 +5,7 @@ import { apiService } from '../lib/api';
 import { toast } from 'react-hot-toast';
 import { useAuth } from './_app';
 import Layout from '../components/Layout';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc,getDocs,collection } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 export default function CreateDebt() {
@@ -15,25 +15,22 @@ export default function CreateDebt() {
   const [creatorName, setCreatorName] = useState('Unknown');
   const router = useRouter();
   const { user } = useAuth();
-  const [vehicles, setVehicles] = useState([
-    { id: 1, plateNumber: "KDB 436Y" },
-    { id: 2, plateNumber: "KDD 071R" },
-    { id: 3, plateNumber: "KDK 013U" },
-    { id: 4, plateNumber: "KDQ 118P" },
-    { id: 5, plateNumber: "KDS 936J" },
-    { id: 6, plateNumber: "KDN 301K" },
-    { id: 7, plateNumber: "" }
-  ]);
-  const [salesReps, setSalesReps] = useState([
-    { id: 1, name: "MWANGI" },
-    { id: 2, name: "ROSE" },
-    { id: 3, name: "KEN" },
-    { id: 4, name: "NGANGA" },
-    { id: 5, name: "MAINA" },
-    { id: 6, name: "WANJIRU" },
-    { id: 7, name: "WORKSHOP HARDWARE" }
-  ]);
 
+
+  const [salesReps, setSalesReps] = useState([]);
+  const [vehicles, setVehicles] = useState([]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const repsSnap = await getDocs(collection(db, "salesReps"));
+      setSalesReps(repsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+
+      const vehiclesSnap = await getDocs(collection(db, "vehicles"));
+      setVehicles(vehiclesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    };
+
+    fetchData();
+  }, []);
   // Fetch creator's name from Firestore
   useEffect(() => {
     const fetchCreatorName = async () => {
@@ -56,23 +53,7 @@ export default function CreateDebt() {
     fetchCreatorName();
   }, [user?.uid]);
 
-  // Simulate fetching vehicles and sales reps from API
-  useEffect(() => {
-    const fetchVehiclesAndReps = async () => {
-      try {
-        // Replace with actual API calls when available
-        // const vehicleResponse = await apiService.vehicles.getAll();
-        // setVehicles(vehicleResponse.data);
-        // const repsResponse = await apiService.salesReps.getAll();
-        // setSalesReps(repsResponse.data);
-      } catch (err) {
-        console.error('Failed to fetch vehicles or sales reps:', err);
-        toast.error('Failed to load vehicle or sales rep data');
-      }
-    };
-    fetchVehiclesAndReps();
-  }, []);
-
+ 
   // Handle phone number input change to auto-convert 07... to +2547...
   const onPhoneNumberChange = (e) => {
     let value = e.target.value.replace(/\D/g, ''); // Remove non-digits
@@ -171,24 +152,36 @@ export default function CreateDebt() {
     <Layout>
       <div className="min-h-screen bg-gray-50">
         {/* Header */}
-        <header className="bg-white shadow-sm border-b border-gray-200">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center h-16 relative group">
-              <button
-                onClick={() => router.push('/dashboard')}
-                className="mr-4 p-2 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100 transition-colors"
-              >
-                <ArrowLeft className="h-5 w-5" />
-                <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 top-12 left-0 z-10">
-                  Return to the dashboard
-                </div>
-              </button>
-              <h1 className="text-xl font-semibold text-gray-900">
-                Create New Debt Record
-              </h1>
-            </div>
+   <header className="bg-white shadow-sm border-b border-gray-200">
+  <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="flex items-center justify-between h-16 relative">
+      <div className="flex items-center space-x-4">
+        <button
+          onClick={() => router.push('/dashboard')}
+          className="p-2 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100 transition-colors relative group"
+        >
+          <ArrowLeft className="h-5 w-5" />
+          <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 top-12 left-0 z-10">
+            Return to the dashboard
           </div>
-        </header>
+        </button>
+        <h1 className="text-xl font-semibold text-gray-900">
+          Create New Debt Record
+        </h1>
+      </div>
+
+      {/* New Button on Top Right */}
+      <button
+        onClick={() => router.push('/manage-resources')}
+        className="btn-secondary flex items-center space-x-2"
+      >
+        <Plus className="h-4 w-4" />
+        <span>Manage Reps & Vehicles</span>
+      </button>
+    </div>
+  </div>
+</header>
+
 
         {/* Main Content */}
         <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -327,47 +320,50 @@ export default function CreateDebt() {
                     </h3>
                     
                     <div className="space-y-4">
-                      <div className="relative group">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Vehicle Plate Number *
-                        </label>
-                        <select
-                          name="vehiclePlate"
-                          required
-                          className="select-field"
-                        >
-                          <option value="">Select vehicle</option>
-                          {vehicles.map((vehicle) => (
-                            <option key={vehicle.id} value={vehicle.plateNumber}>
-                              {vehicle.plateNumber || "No Plate (WORKSHOP HARDWARE)"}
-                            </option>
-                          ))}
-                        </select>
-                        <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
-                          Select the vehicle by plate number
-                        </div>
-                      </div>
-                      
-                      <div className="relative group">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Sales Representative *
-                        </label>
-                        <select
-                          name="salesRep"
-                          required
-                          className="select-field"
-                        >
-                          <option value="">Select sales representative</option>
-                          {salesReps.map((rep) => (
-                            <option key={rep.id} value={rep.name}>
-                              {rep.name}
-                            </option>
-                          ))}
-                        </select>
-                        <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
-                          Select the sales representative associated with the debt
-                        </div>
-                      </div>
+                    {/* Sales Rep Dropdown */}
+                <div className="relative group">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Sales Rep *
+                  </label>
+                  <select
+                    name="salesRep"
+                    required
+                    className="select-field"
+                  >
+                    <option value="">Select Sales Rep</option>
+                    {salesReps.map((rep) => (
+                      <option key={rep.id} value={rep.name}>
+                        {rep.name}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
+                    Select the sales representative associated with the debt
+                  </div>
+                </div>
+
+                {/* Vehicle Dropdown */}
+                <div className="relative group">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Vehicle Plate *
+                  </label>
+                  <select
+                    name="vehiclePlate"
+                    required
+                    className="select-field"
+                  >
+                    <option value="">Select Vehicle</option>
+                    {vehicles.map((v) => (
+                      <option key={v.id} value={v.plateNumber}>
+                        {v.plateNumber}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
+                    Select the vehicle by plate number
+                  </div>
+                </div>
+
                      
                       <div className="relative group">
                         <label className="block text-sm font-medium text-gray-700 mb-1">

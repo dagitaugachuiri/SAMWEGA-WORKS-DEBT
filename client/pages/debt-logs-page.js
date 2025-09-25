@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import { toast } from 'react-hot-toast';
 import { CreditCard, Calendar, DollarSign, User, Cpu, AlertTriangle, Mail, Phone, User2, ArrowLeft, Store, Truck, MapPin, Edit, Trash2, FileText, Banknote } from 'lucide-react';
 import { Tooltip } from 'react-tooltip';
-import { getFirestore, collection, getDocs, doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, doc, getDoc, updateDoc, deleteDoc, arrayRemove } from 'firebase/firestore';
 import { auth, app } from '../lib/firebase';
 
 const db = getFirestore(app);
@@ -146,22 +146,53 @@ export default function DebtLogsPage() {
     }
   };
 
-  const handleDeleteDebt = async () => {
-    if (!isAdmin) {
-      toast.error('Only admins can delete debts');
+
+const handleDeleteDebt = async () => {
+  if (!isAdmin) {
+    toast.error('Only admins can delete debts');
+    return;
+  }
+  try {
+    // Reference to the debt document
+    const debtRef = doc(db, 'debts', debtId);
+    
+    // Fetch the debt document to get the debtCode and customer phone number
+    const debtSnap = await getDoc(debtRef);
+    if (!debtSnap.exists()) {
+      toast.error('Debt not found');
       return;
     }
-    try {
-      const debtRef = doc(db, 'debts', debtId);
-      await deleteDoc(debtRef);
-      toast.success('Debt deleted successfully!');
-      setShowDeleteModal(false);
-      router.push('/dashboard');
-    } catch (error) {
-      console.error('Error deleting debt:', error);
-      toast.error(error.message || 'Failed to delete debt');
+    
+    const debtData = debtSnap.data();
+    const debtCode = debtData.debtCode; // Use debtCode from debt document
+    const customerPhoneNumber = debtData.storeOwner?.phoneNumber;
+
+    if (!debtCode) {
+      throw new Error('Debt code not found in debt document');
     }
-  };
+
+    // Delete the debt document
+    await deleteDoc(debtRef);
+
+    // Update the customer document by removing the debtCode from debtIds array
+    if (customerPhoneNumber) {
+      const customerRef = doc(db, 'customers', customerPhoneNumber);
+      await updateDoc(customerRef, {
+        debtIds: arrayRemove(debtCode),
+        lastUpdatedAt: new Date() // Update the lastUpdatedAt timestamp
+      });
+    } else {
+      console.warn('No customer phone number found in debt document');
+    }
+
+    toast.success('Debt deleted successfully!');
+    setShowDeleteModal(false);
+    router.push('/dashboard');
+  } catch (error) {
+    console.error('Error deleting debt or updating customer:', error);
+    toast.error(error.message || 'Failed to delete debt or update customer');
+  }
+};
 
   const handleViewLocation = () => {
     if (!isAdmin) {
@@ -195,6 +226,8 @@ export default function DebtLogsPage() {
   }, [debtId, router.isReady]);
 
   const formatTimestamp = (timestamp) => {
+    console.log('Formatting timestamp:', timestamp);
+    
     const date = timestamp?.toDate ? timestamp.toDate() : new Date(timestamp);
     return isNaN(date.getTime()) ? 'Invalid Date' : date.toLocaleString('en-GB');
   };
@@ -550,7 +583,7 @@ export default function DebtLogsPage() {
                     <div className="flex items-center gap-2 mb-1">
                       <Calendar className="h-4 w-4 text-gray-400" />
                       <span className={`text-sm text-gray-600 ${log.isDuplicate ? 'line-through' : ''}`}>
-                        Processed: {formatTimestamp(log.processedAt)}
+                        Processed: {formatTimestamp(log.transactionDate ? log.transactionDate : log.processedAt)}
                       </span>
                     </div>
                  

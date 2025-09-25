@@ -242,62 +242,7 @@ export default function Reports() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Payment Trends Chart */}
-            <div className="card">
-              <h2 className="text-lg font-semibold mb-6">Payment Trends</h2>
-              <div className="h-80">
-                {reportData.trends.paymentTrends.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={reportData.trends.paymentTrends}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="date" />
-                      <YAxis />
-                      <Tooltip />
-                      <Area 
-                        type="monotone" 
-                        dataKey="amount" 
-                        stroke={COLORS.primary}
-                        fill={COLORS.primary}
-                        fillOpacity={0.1}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <NoDataFallback message="No payment trends data available" />
-                )}
-              </div>
-            </div>
-
-            {/* Location Performance */}
-            <div className="card">
-              <h2 className="text-lg font-semibold mb-6">Location Performance</h2>
-              <div className="space-y-4">
-                {reportData.locations.topLocations.length > 0 ? (
-                  reportData.locations.topLocations.map((location, index) => (
-                    <div key={index} className="flex items-center">
-                      <div className="w-full">
-                        <div className="flex justify-between mb-1">
-                          <span className="text-sm font-medium">{location.name}</span>
-                          <span className="text-sm text-gray-600">
-                            {formatCurrency(location.amount)}
-                          </span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-2">
-                          <div 
-                            className="bg-blue-600 h-2 rounded-full"
-                            style={{ 
-                              width: `${location.collectionRate}%`,
-                              backgroundColor: CHART_COLORS[index % CHART_COLORS.length]
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <NoDataFallback message="No location performance data available" />
-                )}
-              </div>
-            </div>
+           
 
             {/* Top Vehicles by Total Amount of Debt */}
             <div className="card">

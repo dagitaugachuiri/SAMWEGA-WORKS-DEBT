@@ -268,13 +268,14 @@ router.get('/:id', authenticate, async (req, res) => {
   }
 });
 
-// Process manual payment for debt (SMS-based system)
+
+
 router.post('/:id/payment', authenticate, validate(schemas.payment), async (req, res) => {
   try {
     const db = getFirestoreApp();
     const { id } = req.params;
     const userId = req.user.uid;
-    const { amount, paymentMethod, phoneNumber, chequeNumber, bankName, chequeDate, createdBy, transactionCode } = req.body;
+    const { amount, paymentMethod, phoneNumber, chequeNumber, bankName, chequeDate, createdBy, transactionCode, bankDetails } = req.body;
 
     const debtDoc = doc(db, 'debts', id);
     const debtSnapshot = await getDoc(debtDoc);
@@ -314,19 +315,27 @@ router.post('/:id/payment', authenticate, validate(schemas.payment), async (req,
     const newRemainingAmount = Math.max(0, debt.amount - newPaidAmount);
     const newStatus = newRemainingAmount === 0 ? 'paid' : 'partially_paid';
 
-    // Use 'manual mpesa' for mpesa payment method in debt record
+    // Use 'manual_mpesa' for mpesa payment method in debt record
     const effectivePaymentMethod = paymentMethod === 'mpesa' ? 'manual_mpesa' : paymentMethod;
 
-    await updateDoc(debtDoc, {
+    // Prepare debt update data
+    const debtUpdateData = {
       status: newStatus,
       paidAmount: newPaidAmount,
       remainingAmount: newRemainingAmount,
       paymentMethod: effectivePaymentMethod,
-      paidPaymentMethod: effectivePaymentMethod, // Store effective method
+      paidPaymentMethod: effectivePaymentMethod,
       lastPaymentDate: new Date(),
       lastUpdatedAt: new Date(),
-      manualPaymentRequested: false, // Reset the request flag
-    });
+      manualPaymentRequested: false,
+    };
+
+    // Append bankDetails object to existing array if payment method is bank
+    if (paymentMethod === 'bank' && bankDetails) {
+      debtUpdateData.bankDetails = arrayUnion(bankDetails);
+    }
+
+    await updateDoc(debtDoc, debtUpdateData);
 
     // Log the payment with original paymentMethod
     const paymentLogData = {
@@ -348,10 +357,18 @@ router.post('/:id/payment', authenticate, validate(schemas.payment), async (req,
       paymentLogData.bankName = bankName;
       paymentLogData.chequeDate = chequeDate;
     } else if (paymentMethod === 'bank') {
-      paymentLogData.bankName = bankName;
+      if (bankDetails) {
+        paymentLogData.bankName = bankDetails.bankName;
+        paymentLogData.transactionCode = bankDetails.transactionCode;
+        paymentLogData.bankDetails = bankDetails; // Store bankDetails object
+      } else {
+        return res.status(400).json({
+          success: false,
+          error: 'bankDetails object is required for bank payments',
+        });
+      }
+    } else if (paymentMethod === 'mpesa') {
       paymentLogData.transactionCode = transactionCode;
-    }else if (paymentMethod === 'mpesa') {
-      paymentLogData.transactionCode = transactionCode; // For mpesa, use transactionCode as transactionId
     }
 
     await addDoc(collection(db, 'payment_logs'), paymentLogData);
@@ -374,6 +391,7 @@ router.post('/:id/payment', authenticate, validate(schemas.payment), async (req,
       paymentMethod: effectivePaymentMethod,
       lastPaymentDate: new Date(),
       lastUpdatedAt: new Date(),
+      ...(paymentMethod === 'bank' && bankDetails && { bankDetails: [...(debt.bankDetails || []), bankDetails] }),
     };
 
     res.json({
@@ -382,7 +400,7 @@ router.post('/:id/payment', authenticate, validate(schemas.payment), async (req,
       payment: {
         success: true,
         amount: amount,
-        method: paymentMethod, // Use original paymentMethod in response
+        method: paymentMethod,
         status: newStatus
       },
       sms: smsResult.data,

@@ -5,7 +5,7 @@ import { apiService } from '../lib/api';
 import { toast } from 'react-hot-toast';
 import { useAuth } from './_app';
 import Layout from '../components/Layout';
-import { doc, getDoc,getDocs,collection } from 'firebase/firestore';
+import { doc, getDoc, getDocs, collection, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 export default function CreateDebt() {
@@ -13,13 +13,16 @@ export default function CreateDebt() {
   const [error, setError] = useState(null);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [creatorName, setCreatorName] = useState('Unknown');
+  const [storeOwnerName, setStoreOwnerName] = useState('');
+  const [email, setEmail] = useState('');
+  const [storeName, setStoreName] = useState('');
+  const [location, setLocation] = useState('');
   const router = useRouter();
   const { user } = useAuth();
-
-
   const [salesReps, setSalesReps] = useState([]);
   const [vehicles, setVehicles] = useState([]);
 
+  // Fetch sales reps and vehicles
   useEffect(() => {
     const fetchData = async () => {
       const repsSnap = await getDocs(collection(db, "salesReps"));
@@ -31,6 +34,7 @@ export default function CreateDebt() {
 
     fetchData();
   }, []);
+
   // Fetch creator's name from Firestore
   useEffect(() => {
     const fetchCreatorName = async () => {
@@ -53,7 +57,6 @@ export default function CreateDebt() {
     fetchCreatorName();
   }, [user?.uid]);
 
- 
   // Handle phone number input change to auto-convert 07... to +2547...
   const onPhoneNumberChange = (e) => {
     let value = e.target.value.replace(/\D/g, ''); // Remove non-digits
@@ -67,82 +70,114 @@ export default function CreateDebt() {
     setPhoneNumber(value);
   };
 
- const handleSubmit = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-  setError(null);
-
-  try {
-    // Collect form data
-    const formData = new FormData(e.target);
-    const debtData = {
-      storeOwner: {
-        name: formData.get('storeOwnerName'),
-        phoneNumber: phoneNumber,
-        email: formData.get('email') || '',
-      },
-      vehiclePlate: formData.get('vehiclePlate'),
-      salesRep: formData.get('salesRep'),
-      store: {
-        name: formData.get('storeName'),
-        location: formData.get('location'),
-      },
-      amount: Number(formData.get('amount')),
-      dateIssued: formData.get('dateIssued') || new Date().toISOString().split('T')[0],
-      dueDate: formData.get('dueDate'),
-      paymentMethod: formData.get('paymentMethod'),
-      description: formData.get('description') || '',
-      createdBy: creatorName
-    };
-
-    // Validate phone number format
-    if (!/^\+254[17]\d{8}$/.test(debtData.storeOwner.phoneNumber)) {
-      throw new Error('Phone number must be in format +254XXXXXXXXX (starting with +2541 or +2547)');
+  // Fetch customer details based on phone number
+  const fetchCustomerDetails = async () => {
+    if (!phoneNumber || !/^\+254[17]\d{8}$/.test(phoneNumber)) {
+      toast.error('Please enter a valid phone number in format +254XXXXXXXXX');
+      return;
     }
 
-    // Validate dateIssued and dueDate
-    if (!debtData.dateIssued) {
-      throw new Error('Date issued is required');
-    }
-    if (new Date(debtData.dueDate) < new Date(debtData.dateIssued)) {
-      throw new Error('Due date must be on or after date issued');
-    }
+    try {
+      const customersQuery = query(collection(db, 'customers'), where('phoneNumber', '==', phoneNumber));
+      const querySnapshot = await getDocs(customersQuery);
 
-    // Validate vehicle plate and sales rep
-    const selectedVehicle = vehicles.find(v => v.plateNumber === debtData.vehiclePlate);
-    if (!selectedVehicle && debtData.vehiclePlate !== '') {
-      throw new Error('Please select a valid vehicle');
-    }
-    if (!debtData.salesRep) {
-      throw new Error('Sales representative is required');
-    }
+      if (querySnapshot.empty) {
+        toast.error('No customer found with this phone number');
+        setStoreOwnerName('');
+        setEmail('');
+        setStoreName('');
+        setLocation('');
+        return;
+      }
 
-    // Log request body for debugging
-    console.log('Debt data:', JSON.stringify(debtData, null, 2));
-
-    // Send POST request using apiService
-    const response = await apiService.debts.create(debtData);
-
-    if (response.data.success) {
-      toast.success(
-        <div>
-          <div className="font-semibold">Debt created successfully!</div>
-          <div className="text-sm">Invoice SMS sent to {debtData.storeOwner.phoneNumber}</div>
-        </div>,
-        { duration: 4000 }
-      );
-      router.push('/dashboard');
-    } else {
-      throw new Error(response.data.error || 'Failed to create debt');
+      const customer = querySnapshot.docs[0].data();
+      setStoreOwnerName(customer.name || '');
+      setEmail(customer.email || '');
+      setStoreName(customer.shopName || '');
+      setLocation(customer.location || '');
+      toast.success('Customer details loaded successfully');
+    } catch (error) {
+      console.error('Error fetching customer details:', error);
+      toast.error('Failed to fetch customer details');
     }
-  } catch (err) {
-    console.error('Debt creation error:', err.message);
-    setError(err.message);
-    toast.error(err.message || 'Failed to create debt');
-  } finally {
-    setLoading(false);
-  }
-};
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Collect form data
+      const formData = new FormData(e.target);
+      const debtData = {
+        storeOwner: {
+          name: storeOwnerName,
+          phoneNumber: phoneNumber,
+          email: formData.get('email') || '',
+        },
+        vehiclePlate: formData.get('vehiclePlate'),
+        salesRep: formData.get('salesRep'),
+        store: {
+          name: formData.get('storeName'),
+          location: formData.get('location'),
+        },
+        amount: Number(formData.get('amount')),
+        dateIssued: formData.get('dateIssued') || new Date().toISOString().split('T')[0],
+        dueDate: formData.get('dueDate'),
+        paymentMethod: formData.get('paymentMethod'),
+        description: formData.get('description') || '',
+        createdBy: creatorName
+      };
+
+      // Validate phone number format
+      if (!/^\+254[17]\d{8}$/.test(debtData.storeOwner.phoneNumber)) {
+        throw new Error('Phone number must be in format +254XXXXXXXXX (starting with +2541 or +2547)');
+      }
+
+      // Validate dateIssued and dueDate
+      if (!debtData.dateIssued) {
+        throw new Error('Date issued is required');
+      }
+      if (new Date(debtData.dueDate) < new Date(debtData.dateIssued)) {
+        throw new Error('Due date must be on or after date issued');
+      }
+
+      // Validate vehicle plate and sales rep
+      const selectedVehicle = vehicles.find(v => v.plateNumber === debtData.vehiclePlate);
+      if (!selectedVehicle && debtData.vehiclePlate !== '') {
+        throw new Error('Please select a valid vehicle');
+      }
+      if (!debtData.salesRep) {
+        throw new Error('Sales representative is required');
+      }
+
+      // Log request body for debugging
+      console.log('Debt data:', JSON.stringify(debtData, null, 2));
+
+      // Send POST request using apiService
+      const response = await apiService.debts.create(debtData);
+
+      if (response.data.success) {
+        toast.success(
+          <div>
+            <div className="font-semibold">Debt created successfully!</div>
+            <div className="text-sm">Invoice SMS sent to {debtData.storeOwner.phoneNumber}</div>
+          </div>,
+          { duration: 4000 }
+        );
+        router.push('/dashboard');
+      } else {
+        throw new Error(response.data.error || 'Failed to create debt');
+      }
+    } catch (err) {
+      console.error('Debt creation error:', err.message);
+      setError(err.message);
+      toast.error(err.message || 'Failed to create debt');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (!user) {
     return null;
@@ -152,36 +187,35 @@ export default function CreateDebt() {
     <Layout>
       <div className="min-h-screen bg-gray-50">
         {/* Header */}
-   <header className="bg-white shadow-sm border-b border-gray-200">
-  <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-    <div className="flex items-center justify-between h-16 relative">
-      <div className="flex items-center space-x-4">
-        <button
-          onClick={() => router.push('/dashboard')}
-          className="p-2 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100 transition-colors relative group"
-        >
-          <ArrowLeft className="h-5 w-5" />
-          <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 top-12 left-0 z-10">
-            Return to the dashboard
+        <header className="bg-white shadow-sm border-b border-gray-200">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-16 relative">
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={() => router.push('/dashboard')}
+                  className="p-2 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100 transition-colors relative group"
+                >
+                  <ArrowLeft className="h-5 w-5" />
+                  <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 top-12 left-0 z-10">
+                    Return to the dashboard
+                  </div>
+                </button>
+                <h1 className="text-xl font-semibold text-gray-900">
+                  Create New Debt Record
+                </h1>
+              </div>
+
+              {/* New Button on Top Right */}
+              <button
+                onClick={() => router.push('/manage-resources')}
+                className="btn-secondary flex items-center space-x-2"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Manage Reps & Vehicles</span>
+              </button>
+            </div>
           </div>
-        </button>
-        <h1 className="text-xl font-semibold text-gray-900">
-          Create New Debt Record
-        </h1>
-      </div>
-
-      {/* New Button on Top Right */}
-      <button
-        onClick={() => router.push('/manage-resources')}
-        className="btn-secondary flex items-center space-x-2"
-      >
-        <Plus className="h-4 w-4" />
-        <span>Manage Reps & Vehicles</span>
-      </button>
-    </div>
-  </div>
-</header>
-
+        </header>
 
         {/* Main Content */}
         <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -254,6 +288,39 @@ export default function CreateDebt() {
                     <div className="space-y-4">
                       <div className="relative group">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Phone Number *
+                          <span className="text-xs text-blue-600 ml-1">(SMS will be sent here)</span>
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="tel"
+                            name="phoneNumber"
+                            required
+                            value={phoneNumber}
+                            onChange={onPhoneNumberChange}
+                            className="input-field flex-1"
+                            placeholder="+254712345678 or 0712345678"
+                            title="Phone number will be converted to +254XXXXXXXXX format"
+                          />
+                          <button
+                            type="button"
+                            onClick={fetchCustomerDetails}
+                            className="btn-primary px-4 py-2"
+                            disabled={loading}
+                          >
+                            Find Customer
+                          </button>
+                        </div>
+                        <p className="mt-1 text-xs text-gray-500">
+                          Format: +254712345678 or 0712345678
+                        </p>
+                        <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
+                          Enter a valid Kenyan phone number (will be converted to +254 format)
+                        </div>
+                      </div>
+
+                      <div className="relative group">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
                           Store Owner Name *
                         </label>
                         <input
@@ -264,49 +331,15 @@ export default function CreateDebt() {
                           maxLength="100"
                           className="input-field"
                           placeholder="Enter store owner name"
+                          value={storeOwnerName}
+                          onChange={(e) => setStoreOwnerName(e.target.value)}
                         />
                         <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
                           Enter the full name of the store owner (2-100 characters)
                         </div>
                       </div>
                       
-                      <div className="relative group">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Phone Number *
-                          <span className="text-xs text-blue-600 ml-1">(SMS will be sent here)</span>
-                        </label>
-                        <input
-                          type="tel"
-                          name="phoneNumber"
-                          required
-                          value={phoneNumber}
-                          onChange={onPhoneNumberChange}
-                          className="input-field"
-                          placeholder="+254712345678 or 0712345678"
-                          title="Phone number will be converted to +254XXXXXXXXX format"
-                        />
-                        <p className="mt-1 text-xs text-gray-500">
-                          Format: +254712345678 or 0712345678
-                        </p>
-                        <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
-                          Enter a valid Kenyan phone number (will be converted to +254 format)
-                        </div>
-                      </div>
-                      
-                      <div className="relative group">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Email (Optional)
-                        </label>
-                        <input
-                          type="email"
-                          name="email"
-                          className="input-field"
-                          placeholder="Enter email address"
-                        />
-                        <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
-                          Optional: Enter the store owner's email for additional contact
-                        </div>
-                      </div>
+                  
                     </div>
                   </div>
 
@@ -320,51 +353,50 @@ export default function CreateDebt() {
                     </h3>
                     
                     <div className="space-y-4">
-                    {/* Sales Rep Dropdown */}
-                <div className="relative group">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Sales Rep *
-                  </label>
-                  <select
-                    name="salesRep"
-                    required
-                    className="select-field"
-                  >
-                    <option value="">Select Sales Rep</option>
-                    {salesReps.map((rep) => (
-                      <option key={rep.id} value={rep.name}>
-                        {rep.name}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
-                    Select the sales representative associated with the debt
-                  </div>
-                </div>
+                      {/* Sales Rep Dropdown */}
+                      <div className="relative group">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Sales Rep *
+                        </label>
+                        <select
+                          name="salesRep"
+                          required
+                          className="select-field"
+                        >
+                          <option value="">Select Sales Rep</option>
+                          {salesReps.map((rep) => (
+                            <option key={rep.id} value={rep.name}>
+                              {rep.name}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
+                          Select the sales representative associated with the debt
+                        </div>
+                      </div>
 
-                {/* Vehicle Dropdown */}
-                <div className="relative group">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Vehicle Plate *
-                  </label>
-                  <select
-                    name="vehiclePlate"
-                    required
-                    className="select-field"
-                  >
-                    <option value="">Select Vehicle</option>
-                    {vehicles.map((v) => (
-                      <option key={v.id} value={v.plateNumber}>
-                        {v.plateNumber}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
-                    Select the vehicle by plate number
-                  </div>
-                </div>
+                      {/* Vehicle Dropdown */}
+                      <div className="relative group">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Vehicle Plate *
+                        </label>
+                        <select
+                          name="vehiclePlate"
+                          required
+                          className="select-field"
+                        >
+                          <option value="">Select Vehicle</option>
+                          {vehicles.map((v) => (
+                            <option key={v.id} value={v.plateNumber}>
+                              {v.plateNumber}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
+                          Select the vehicle by plate number
+                        </div>
+                      </div>
 
-                     
                       <div className="relative group">
                         <label className="block text-sm font-medium text-gray-700 mb-1">
                           Payment Method *
@@ -410,6 +442,8 @@ export default function CreateDebt() {
                           maxLength="100"
                           className="input-field"
                           placeholder="Enter store name"
+                          value={storeName}
+                          onChange={(e) => setStoreName(e.target.value)}
                         />
                         <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
                           Enter the name of the store (2-100 characters)
@@ -428,6 +462,8 @@ export default function CreateDebt() {
                           maxLength="100"
                           className="input-field"
                           placeholder="Enter store location"
+                          value={location}
+                          onChange={(e) => setLocation(e.target.value)}
                         />
                         <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
                           Enter the store's physical location (e.g., city or area)
@@ -458,7 +494,7 @@ export default function CreateDebt() {
                           max="10000000"
                           step="0.01"
                           className="input-field"
-                          Placeholder="0.00"
+                          placeholder="0.00"
                         />
                         <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-10 left-0 z-10">
                           Enter the debt amount in KES (max 10M)
@@ -498,21 +534,7 @@ export default function CreateDebt() {
                         </div>
                       </div>
                       
-                      <div className="relative group">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Description (Optional)
-                        </label>
-                        <textarea
-                          name="description"
-                          maxLength="500"
-                          rows="3"
-                          className="input-field"
-                          placeholder="Enter additional notes or description"
-                        />
-                        <div className="absolute invisible group-hover:visible bg-gray-800 text-white text-xs rounded py-1 px-2 -top-12 left-0 z-10">
-                          Optional: Add notes or details about the debt (max 500 characters)
-                        </div>
-                      </div>
+                    
                     </div>
                   </div>
                 </div>
@@ -565,7 +587,7 @@ export default function CreateDebt() {
                 <p className="font-medium">What happens after you create this debt:</p>
                 <ul className="mt-1 space-y-1">
                   <li>• A unique 6-digit reference code will be generated</li>
-                  <li>• An invoice SMS will be sent immediately to the debtor's phone</li>
+                  <li>• An invoice SMS will be sent immediately to the debtor's phone number</li>
                   <li>• The debt will appear in your dashboard with "Pending" status</li>
                   <li>• Payment notifications will be sent automatically when received</li>
                 </ul>

@@ -139,8 +139,11 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
           chequeDate: formData.get('chequeDate') || new Date().toISOString(),
         }),
         ...(formData.get('paymentMethod') === 'bank' && {
-          bankName: formData.get('bankName')?.trim(),
-          transactionCode: formData.get('transactionCode')?.trim(),
+          bankDetails: {
+            bankName: formData.get('bankName')?.trim(),
+            amount: parseFloat(formData.get('amount')),
+            transactionCode: formData.get('transactionCode')?.trim(),
+          },
         }),
       };
 

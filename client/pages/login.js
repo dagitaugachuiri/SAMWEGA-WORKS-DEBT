@@ -57,6 +57,8 @@ export default function Login() {
       // Use the email from Firestore for authentication
       const email = userData.email;
       await signInWithEmailAndPassword(auth, email, password);
+      console.log('Login successful for:', email,password);
+      
       toast.success('Successfully logged in!');
       router.push('/dashboard');
     } catch (error) {

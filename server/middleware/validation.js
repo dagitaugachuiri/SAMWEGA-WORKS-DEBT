@@ -5,6 +5,13 @@ const phoneSchema = Joi.string()
   .pattern(/^\+254[17]\d{8}$/)
   .message('Phone number must be in format +254XXXXXXXXX');
 
+// Bank detail schema for bank payments
+const bankDetailSchema = Joi.object({
+  bankName: Joi.string().required(),
+  amount: Joi.number().positive().required(),
+  transactionCode: Joi.string().min(3).max(50).required()
+});
+
 // Debt creation validation schema
 const debtSchema = Joi.object({
   storeOwner: Joi.object({
@@ -19,10 +26,10 @@ const debtSchema = Joi.object({
     locationCoords: Joi.object({
       lat: Joi.number().min(-90).max(90).required(),
       lng: Joi.number().min(-180).max(180).required()
-    }).optional()  // ✅ Optional field
+    }).optional()
   }).required(),
   
-  amount: Joi.number().positive().max(10000000).required(), // Max 10M KES
+  amount: Joi.number().positive().max(10000000).required(),
   dateIssued: Joi.date().max('now').required(),
   dueDate: Joi.date().min(Joi.ref('dateIssued')).required(),
   paymentMethod: Joi.string().valid('mpesa', 'bank', 'cheque').required(),
@@ -42,10 +49,10 @@ const debtSchema = Joi.object({
     })
 });
 
-
 // Payment processing validation schema
 const paymentSchema = Joi.object({
   createdBy: Joi.string().min(2).max(100).required(),
+  createdByName: Joi.string().min(2).max(100).required(),
   amount: Joi.number().positive().required(),
   paymentMethod: Joi.string().valid('mpesa', 'bank', 'cheque', 'cash').required(),
   phoneNumber: Joi.when('paymentMethod', {
@@ -59,7 +66,7 @@ const paymentSchema = Joi.object({
     otherwise: Joi.optional()
   }),
   bankName: Joi.when('paymentMethod', {
-    is: Joi.alternatives().try('cheque', 'bank'),
+    is: 'cheque',
     then: Joi.string().required(),
     otherwise: Joi.optional()
   }),
@@ -69,11 +76,26 @@ const paymentSchema = Joi.object({
     otherwise: Joi.optional()
   }),
   transactionCode: Joi.when('paymentMethod', {
-    is: Joi.alternatives().try('mpesa', 'bank'),
+    is: 'mpesa',
     then: Joi.string().min(3).max(50).required(),
+    otherwise: Joi.optional()
+  }),
+  bankDetails: Joi.when('paymentMethod', {
+    is: 'bank',
+    then: bankDetailSchema.required()
+      .custom((value, helpers) => {
+        const totalAmount = helpers.state.ancestors[0].amount;
+        if (value.amount !== totalAmount) {
+          return helpers.error('any.custom', {
+            message: 'Bank details amount must equal the total payment amount'
+          });
+        }
+        return value;
+      }),
     otherwise: Joi.optional()
   })
 });
+
 // Validation middleware factory
 const validate = (schema) => {
   return (req, res, next) => {

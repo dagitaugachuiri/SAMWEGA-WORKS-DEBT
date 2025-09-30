@@ -586,6 +586,12 @@ const handleDeleteDebt = async () => {
                         Processed: {formatTimestamp(log.transactionDate ? log.transactionDate : log.processedAt)}
                       </span>
                     </div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Calendar className="h-4 w-4 text-gray-400" />
+                      <span className={`text-sm text-gray-600 ${log.isDuplicate ? 'line-through' : ''}`}>
+                        Paid on: {formatTimestamp(log.paymentDate) || 'N/A'}
+                      </span>
+                    </div>
 
                     {log.paymentMethod==='cheque'?
                      <div className="flex items-center gap-2 mb-1">

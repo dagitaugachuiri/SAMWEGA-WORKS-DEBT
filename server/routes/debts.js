@@ -111,7 +111,7 @@ router.post('/', authenticate, validate(schemas.debt), async (req, res) => {
     // Send SMS notification if storeOwner phoneNumber is available
     let smsResult = { data: null };
     if (normalizedPhoneNumber) {
-      const smsMessage = smsService.generateInvoiceSMS(debtData);
+      const smsMessage = smsService.generateInvoiceSMS(debtData,normalizedPhoneNumber);
       console.log('SMS message:', smsMessage);
       smsResult = await smsService.sendSMS(
         normalizedPhoneNumber,
@@ -275,7 +275,7 @@ router.post('/:id/payment', authenticate, validate(schemas.payment), async (req,
     const db = getFirestoreApp();
     const { id } = req.params;
     const userId = req.user.uid;
-    const { amount, paymentMethod, phoneNumber, chequeNumber, bankName, chequeDate, createdBy, transactionCode, bankDetails } = req.body;
+    const { amount, paymentMethod, phoneNumber, chequeNumber, bankName, chequeDate, paymentDate, createdBy, transactionCode, bankDetails } = req.body;
 
     const debtDoc = doc(db, 'debts', id);
     const debtSnapshot = await getDoc(debtDoc);
@@ -348,7 +348,8 @@ router.post('/:id/payment', authenticate, validate(schemas.payment), async (req,
       accountNumber: debt.debtCode,
       processedAt: new Date(),
       manualProcessed: true,
-      createdBy: createdBy
+      createdBy: createdBy,
+      paymentDate: paymentMethod === 'cheque' ? chequeDate : paymentDate
     };
 
     // Conditionally add fields based on payment method
@@ -607,7 +608,7 @@ router.post('/:id/resend-invoice-sms', authenticate, async (req, res) => {
     }
 
     // Generate and send invoice SMS with remaining amount
-    const smsMessage = smsService.generateInvoiceSMS(debt);
+    const smsMessage = smsService.generateInvoiceSMS(debt, debt.storeOwner.phoneNumber);
     const smsResult = await smsService.sendSMS(
       debt.storeOwner.phoneNumber,
       smsMessage,

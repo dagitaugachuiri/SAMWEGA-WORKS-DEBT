@@ -75,6 +75,11 @@ const paymentSchema = Joi.object({
     then: Joi.date().required(),
     otherwise: Joi.optional()
   }),
+  paymentDate: Joi.when('paymentMethod', {
+    is: 'cheque',
+    then: Joi.date().optional(),
+    otherwise: Joi.date().required()
+  }),
   transactionCode: Joi.when('paymentMethod', {
     is: 'mpesa',
     then: Joi.string().min(3).max(50).required(),

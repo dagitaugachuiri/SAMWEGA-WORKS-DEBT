@@ -107,14 +107,18 @@ class SMSService {
     }
   }
 
-  generateInvoiceSMS(debt) {
+ generateInvoiceSMS(debt, phoneNumber) {
     console.log('📝 Generating invoice SMS...');
     console.log(`   - Debt Code: ${debt.debtCode}`);
     console.log(`   - Original Amount: ${debt.amount}`);
     console.log(`   - Remaining Amount: ${debt.remainingAmount}`);
     console.log(`   - Store Owner Name: ${debt.storeOwner.name}`);
-
+    console.log(`   - Store Owner Phone Number: ${phoneNumber}`);
+    
     const { debtCode, paymentMethod, dueDate, remainingAmount } = debt;
+    
+    // Format phone number: replace +254 with 0
+    const formattedPhoneNumber = phoneNumber.replace(/^\+254/, '0');
     
     // Use remaining amount instead of original amount
     const formattedAmount = new Intl.NumberFormat('en-KE', {
@@ -130,10 +134,10 @@ class SMSService {
       year: '2-digit'
     });
 
-    // Create payment instructions
+    // Create payment instructions using formatted phone number
     const paymentInfo = paymentMethod === 'mpesa' 
-      ? `Paybill ${process.env.SAMWEGA_PAYBILL}, Acc ${debtCode}`
-      : `Ref: ${debtCode}`;
+      ? `Paybill ${process.env.SAMWEGA_PAYBILL}, Acc ${formattedPhoneNumber}`
+      : `Ref: ${formattedPhoneNumber}`;
 
     // Construct message with remaining amount
     const message = `Dear ${debt.storeOwner.name}, Outstanding Ksh${formattedAmount} for #${debtCode}. ${paymentInfo}. Pay by ${formattedDate} for inquiries call 0113689071.`;
@@ -143,7 +147,7 @@ class SMSService {
     console.log(`   - Message preview: ${message.substring(0, 100)}...`);
 
     return message;
-  }
+}
 
   generatePaymentConfirmationSMS(debt, paymentAmount) {
     console.log('💰 Generating payment confirmation SMS...');

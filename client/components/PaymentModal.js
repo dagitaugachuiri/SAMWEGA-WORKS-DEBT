@@ -59,6 +59,7 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
     const transactionCode = formData.get('transactionCode');
     const chequeNumber = formData.get('chequeNumber');
     const chequeDate = formData.get('chequeDate');
+    const paymentDate = formData.get('paymentDate');
     const phoneNumber = formData.get('phoneNumber') || debt.storeOwner.phoneNumber;
 
     if (!amount || parseFloat(amount) <= 0) {
@@ -67,6 +68,10 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
 
     if (!paymentMethod) {
       errors.paymentMethod = 'Payment method is required';
+    }
+
+    if (paymentMethod !== 'cheque' && !paymentDate) {
+      errors.paymentDate = 'Payment date is required';
     }
 
     if (paymentMethod === 'mpesa') {
@@ -130,6 +135,9 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
         amount: parseFloat(formData.get('amount')),
         paymentMethod: formData.get('paymentMethod'),
         phoneNumber: formData.get('phoneNumber') || debt.storeOwner.phoneNumber,
+        ...(formData.get('paymentMethod') !== 'cheque' && {
+          paymentDate: formData.get('paymentDate') || new Date().toISOString(),
+        }),
         ...(formData.get('paymentMethod') === 'mpesa' && {
           transactionCode: formData.get('transactionCode')?.trim(),
         }),
@@ -372,6 +380,22 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
                 )}
               </div>
             </div>
+
+          { paymentMethod !== 'cheque' && (<div>  
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Payment Date
+              </label>
+              <input
+                type="date"
+                name="paymentDate"
+                className={`input-field w-full p-2 border rounded ${formErrors.paymentDate ? 'border-red-500' : ''}`}
+                required={paymentMethod !== 'cheque'}
+                disabled={paymentMethod === 'cheque'}
+              />
+              {formErrors.paymentDate && (
+                <p className="text-red-500 text-sm mt-1">{formErrors.paymentDate}</p>
+              )}
+            </div>)}
           </div>
 
           <div className="flex space-x-3 mt-6">

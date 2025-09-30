@@ -2,7 +2,11 @@ const express = require('express');
 const { authenticate } = require('../middleware/auth');
 const smsProcessor = require('../services/smsProcessor');
 
+
+const { getFirestore, collection, getDocs, doc, query, where, getDoc, setDoc, updateDoc, arrayUnion, writeBatch } = require('firebase/firestore');
+
 const router = express.Router();
+const db = getFirestore();
 
 // Standardized error response helper
 const createErrorResponse = (status, message, details = {}, originalData = null) => ({
@@ -15,6 +19,75 @@ const createErrorResponse = (status, message, details = {}, originalData = null)
   }
 });
 
+router.post('/webhook', async (req, res) => {
+  try {
+    console.log('📥 Received SMS webhook:', JSON.stringify(req.body, null, 2));
+
+    // Extract webhook data
+    const webhookData = req.body;
+
+    // Validate webhook data
+    if (!webhookData || !webhookData.body) {
+      console.error('❌ No SMS message provided in request body');
+      return res.status(400).json(createErrorResponse(400, 'SMS message is required', { receivedBody: req.body }));
+    }
+
+    // Parse the SMS using smsProcessor
+    const parsedSMS = smsProcessor.parseMpesaWebhook(webhookData);
+
+    if (!parsedSMS.success) {
+      console.warn('⚠️ Failed to parse SMS:', parsedSMS.error);
+      return res.status(400).json(createErrorResponse(400, 'Invalid SMS message format', { error: parsedSMS.error }, webhookData.body));
+    }
+
+    const { transactionId } = parsedSMS.data;
+
+    // Check if transaction exists in Firestore 'transactions' collection
+    const transactionRef = doc(db, 'transactions', transactionId);
+    const transactionSnap = await getDoc(transactionRef);
+
+    if (transactionSnap.exists()) {
+      console.warn(`⚠️ Transaction ${transactionId} already exists`);
+      return res.status(409).json(createErrorResponse(409, `Transaction ${transactionId} already processed`, { transactionId }));
+    }
+
+    // Create new transaction document
+    const transactionData = {
+      transactionId,
+      from: webhookData.from,
+      amount: parsedSMS.data.amount,
+      senderName: parsedSMS.data.senderName,
+      phoneNumber: parsedSMS.data.phoneNumber,
+      accountNumber: parsedSMS.data.accountNumber,
+      timestamp: new Date(),
+      status: 'pending'
+    };
+    await setDoc(transactionRef, transactionData);
+    console.log(`✅ Created new transaction: ${transactionId}`);
+
+    // Process payment if SMS was parsed successfully
+    const paymentResult = await smsProcessor.processSMSPayment(parsedSMS.data);
+
+    if (!paymentResult.success) {
+      console.error('❌ Failed to process SMS payment:', paymentResult.error);
+      return res.status(400).json(createErrorResponse(400, 'Payment processing failed', { error: paymentResult.error, accountNumber: paymentResult.accountNumber }));
+    }
+
+    // Update transaction status to 'processed' after successful payment
+    await updateDoc(transactionRef, { status: 'processed' });
+
+    console.log('✅ Webhook processed successfully:', JSON.stringify(paymentResult, null, 2));
+    res.status(200).json({
+      success: true,
+      message: 'Webhook processed successfully',
+      payment: paymentResult
+    });
+
+  } catch (error) {
+    console.error('❌ Webhook error:', error.message, error.stack);
+    res.status(500).json(createErrorResponse(500, 'Internal server error', { stack: error.stack }, req.body));
+  }
+});
 // POST endpoint to receive M-Pesa SMS messages
 router.post('/mpesa', async (req, res) => {
   try {
@@ -61,47 +134,6 @@ router.post('/mpesa', async (req, res) => {
 
 // POST endpoint to receive M-Pesa SMS webhook (alternative version)
 // POST endpoint to receive M-Pesa SMS webhook
-router.post('/webhook', async (req, res) => {
-  try {
-    console.log('📥 Received SMS webhook:', JSON.stringify(req.body, null, 2));
-
-    // Extract webhook data
-    const webhookData = req.body;
-
-    // Validate webhook data
-    if (!webhookData || !webhookData.body) {
-      console.error('❌ No SMS message provided in request body');
-      return res.status(400).json(createErrorResponse(400, 'SMS message is required', { receivedBody: req.body }));
-    }
-
-    // Parse the SMS using smsProcessor
-const parsedSMS = smsProcessor.parseMpesaWebhook(webhookData);
-
-    if (!parsedSMS.success) {
-      console.warn('⚠️ Failed to parse SMS:', parsedSMS.error);
-      return res.status(400).json(createErrorResponse(400, 'Invalid SMS message format', { error: parsedSMS.error }, webhookData.body));
-    }
-
-    // Process payment if SMS was parsed successfully
-    const paymentResult = await smsProcessor.processSMSPayment(parsedSMS.data);
-
-    if (!paymentResult.success) {
-      console.error('❌ Failed to process SMS payment:', paymentResult.error);
-      return res.status(400).json(createErrorResponse(400, 'Payment processing failed', { error: paymentResult.error, accountNumber: paymentResult.accountNumber }));
-    }
-
-    console.log('✅ Webhook processed successfully:', JSON.stringify(paymentResult, null, 2));
-    res.status(200).json({
-      success: true,
-      message: 'Webhook processed successfully',
-      payment: paymentResult
-    });
-
-  } catch (error) {
-    console.error('❌ Webhook error:', error.message, error.stack);
-    res.status(500).json(createErrorResponse(500, 'Internal server error', { stack: error.stack }, req.body));
-  }
-});
 // GET endpoint to test SMS parsing (for development/testing)
 router.get('/test-parse', authenticate, async (req, res) => {
   try {

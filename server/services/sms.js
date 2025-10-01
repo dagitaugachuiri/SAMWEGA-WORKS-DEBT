@@ -140,7 +140,7 @@ class SMSService {
       : `Ref: ${formattedPhoneNumber}`;
 
     // Construct message with remaining amount
-    const message = `Dear ${debt.storeOwner.name}, Outstanding Ksh${formattedAmount} for #${debtCode}. ${paymentInfo}. Pay by ${formattedDate} for inquiries call 0113689071.`;
+    const message = `Dear ${debt.storeOwner.name}, Outstanding Ksh${formattedAmount}. ${paymentInfo}. Pay by ${formattedDate} for inquiries call 0113689071.`;
 
     console.log('✅ Invoice SMS generated successfully');
     console.log(`   - Message length: ${message.length} characters`);

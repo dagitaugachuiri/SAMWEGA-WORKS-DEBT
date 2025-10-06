@@ -54,30 +54,13 @@ class SMSService {
 
       const result = response.data;
       console.log('📋 TextSMS Response:', result);
-
-      // Log attempt regardless of outcome
-      await this.logSMS({
-        userId,
-        debtId,
-        to: formattedPhone,
-        message: formattedMessage,
-        originalMessage: message,
-        messageLength: message.length,
-        success: result.responses?.[0]?.['respose-code'] === 200,
-        provider: 'textsms',
-        response: result,
-        timestamp: new Date()
-      });
-
-      if (result.responses?.[0]?.['respose-code'] === 200) {
-        return {
+  return {
           success: true,
           messageId: result.responses[0].messageid,
           data: result.responses[0]
         };
-      } else {
-        throw new Error(result.responses?.[0]?.['response-description'] || 'SMS sending failed');
-      }
+      // Log attempt regardless of outcome
+  
 
     } catch (error) {
       console.error('❌ SMS Service Error:', {
@@ -140,7 +123,7 @@ class SMSService {
       : `Ref: ${formattedPhoneNumber}`;
 
     // Construct message with remaining amount
-    const message = `Dear ${debt.storeOwner.name}, Outstanding Ksh${formattedAmount} for #${debtCode}. ${paymentInfo}. Pay by ${formattedDate} for inquiries call 0113689071.`;
+    const message = `Dear ${debt.storeOwner.name}, Outstanding Ksh${formattedAmount}. ${paymentInfo}. Pay by ${formattedDate} for inquiries call 0113689071.`;
 
     console.log('✅ Invoice SMS generated successfully');
     console.log(`   - Message length: ${message.length} characters`);

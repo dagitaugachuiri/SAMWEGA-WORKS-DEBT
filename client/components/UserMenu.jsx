@@ -67,14 +67,7 @@ export default function UserMenu({ user, isDisabled, onLogout, showUserMenu, set
               <span>Manage System</span>
             </button>
             
-            <button
-              onClick={handleManageCustomers}
-              className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left flex items-center space-x-2"
-              data-tooltip-id="customers-tooltip"
-            >
-              <Users className="h-4 w-4" />
-              <span>Customers</span>
-            </button>
+          
             
             <button
               onClick={handleManageSupplierDebts}

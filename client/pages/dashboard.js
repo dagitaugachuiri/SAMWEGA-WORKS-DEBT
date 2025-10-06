@@ -5,7 +5,7 @@ import { auth, db } from '../lib/firebase';
 import { useAuth } from './_app';
 import { apiService } from '../lib/api';
 import { toast } from 'react-hot-toast';
-import { Plus, FileText } from 'lucide-react';
+import { Plus, FileText, CreditCard, Users } from 'lucide-react';
 import { Tooltip } from 'react-tooltip';
 import Layout from '../components/Layout';
 import StatsGrid from '../components/StatsGrid';
@@ -109,6 +109,8 @@ export default function Dashboard() {
   const handleCreateDebt = () => router.push('/create-debt');
 
   const handleReportsClick = () => router.push('/reports');
+  const handlePaymentsClick = () => router.push('/payment-logs');
+  const handleManageCustomers = () => router.push('/customers');
 
   const handlePaymentClick = (debt) => {
     setSelectedDebt(debt);
@@ -227,6 +229,22 @@ export default function Dashboard() {
                   <FileText className="h-4 w-4" />
                   <span>Reports</span>
                 </button>
+                <button
+                  data-tooltip-id="reports-tooltip"
+                  onClick={handlePaymentsClick}
+                  className="btn-secondary flex items-center space-x-2"
+                >
+                  <CreditCard className="h-4 w-4" />
+                  <span>User Payments</span>
+                </button>
+               <button
+              onClick={handleManageCustomers}
+              className="btn-secondary flex items-center space-x-2"
+              data-tooltip-id="customers-tooltip"
+            >
+              <Users className="h-4 w-4" />
+              <span>Customers</span>
+            </button>
                 
                 <UserMenu 
                   user={user}

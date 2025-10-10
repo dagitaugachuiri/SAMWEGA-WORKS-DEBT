@@ -66,7 +66,7 @@ function MyApp({ Component, pageProps }) {
         if (configDoc.exists()) {
           setAllowedIPs(configDoc.data().ips || []);
         } else {
-          setAllowedIPs(['127.0.0.1', '::1']);
+          setAllowedIPs(['127.0.0.1', '::1','10.210.225.193']);
         }
 
         // Fetch shift times

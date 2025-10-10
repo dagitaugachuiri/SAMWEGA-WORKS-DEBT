@@ -167,8 +167,8 @@ function MyApp({ Component, pageProps }) {
     );
   }
 
-  // ✅ Shift restriction screen (applies to admins too)
-  if (timeReached) {
+  // ✅ Shift restriction screen except admins
+  if (timeReached && userRole !== "admin") {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-100">
         <div className="text-center p-10 bg-white rounded-xl shadow-lg max-w-md w-full">

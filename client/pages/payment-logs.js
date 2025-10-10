@@ -48,7 +48,7 @@ useEffect(() => {
         console.log(log);
         //transactionDate
 
-        const logDate = new Date(log.processedAt ? log.processedAt.seconds * 1000 : log.transactionDate.seconds * 1000);
+        const logDate = new Date(log.processedAt ? log.processedAt.seconds * 1000 : log.transactionDate ? log.transactionDate.seconds * 1000 : null);
         return logDate >= new Date("2025-10-01");
       });
 

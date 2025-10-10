@@ -45,7 +45,10 @@ useEffect(() => {
 
       // Filter logs to only show those after Oct 1, 2025
       const filteredLogs = logsData.filter(log => {
-        const logDate = new Date(log.date || log.createdAt);
+        console.log(log);
+        //transactionDate
+
+        const logDate = new Date(log.processedAt ? log.processedAt.seconds * 1000 : log.transactionDate.seconds * 1000);
         return logDate >= new Date("2025-10-01");
       });
 

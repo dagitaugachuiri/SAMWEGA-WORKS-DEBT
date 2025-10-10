@@ -139,22 +139,27 @@ export default function SystemManagement() {
     }
   };
 
-  // ✅ Update shift times
-  const updateShiftTimes = async () => {
-    setIsUpdatingShiftTimes(true);
-    try {
-      await updateDoc(doc(db, "config", "shift_times"), {
+
+const updateShiftTimes = async () => {
+  setIsUpdatingShiftTimes(true);
+  try {
+    await setDoc(
+      doc(db, "config", "shift_times"),
+      {
         ...shiftTimes,
         lastResetDate: new Date().toISOString().split("T")[0],
-      });
-      toast.success("Shift times updated");
-    } catch (error) {
-      console.error("Error updating shift times:", error);
-      toast.error("Failed to update shift times");
-    } finally {
-      setIsUpdatingShiftTimes(false);
-    }
-  };
+      },
+      { merge: true } // ✅ creates document if it doesn’t exist
+    );
+    toast.success("Shift times updated");
+  } catch (error) {
+    console.error("Error updating shift times:", error);
+    toast.error("Failed to update shift times");
+  } finally {
+    setIsUpdatingShiftTimes(false);
+  }
+};
+
 
   // ✅ Loading state
   if (loading || !user) {

@@ -5,7 +5,7 @@ import { auth, db } from '../lib/firebase';
 import { useAuth } from './_app';
 import { toast } from 'react-hot-toast';
 import { Home, User, Upload } from 'lucide-react';
-import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, query } from 'firebase/firestore';
 import apiService from '../lib/api';
 
 export default function PaymentLogs() {
@@ -15,8 +15,10 @@ export default function PaymentLogs() {
   const [searchTerm, setSearchTerm] = useState('');
   const [userFilter, setUserFilter] = useState('all');
   const [paymentMethodFilter, setPaymentMethodFilter] = useState('all');
-  const [dateRange, setDateRange] = useState({ start: '', end: '' });
-  const [selectedLog, setSelectedLog] = useState(null);
+const [dateRange, setDateRange] = useState({
+  start: '2025-10-01', // Default start date
+  end: ''              // End date optional
+});  const [selectedLog, setSelectedLog] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showVerifyModal, setShowVerifyModal] = useState(false);
@@ -30,35 +32,35 @@ const [processorStatus, setProcessorStatus] = useState(true); // New state for p
   // Define bank options
   const bankOptions = ['Equity', 'Old KCB', 'New KCB', 'Old Absa', 'New Absa', 'Family'];
 
-  useEffect(() => {
-    const fetchLogs = async () => {
-      try {
-        setLoading(true);
-        const logsSnapshot = await getDocs(collection(db, 'payment_logs'));
-        const logsData = logsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setLogs(logsData);
-      } catch (error) {
-        console.error('Error fetching logs:', error);
-        toast.error('Failed to load payment logs');
-      } finally {
-        setLoading(false);
-      }
-    };
+useEffect(() => {
+  const fetchPaymentLogs = async () => {
+    setLoading(true);
+    try {
+      const q = query(collection(db, "payment_logs"));
+      const snapshot = await getDocs(q);
+      const logsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
 
-    const fetchUsers = async () => {
-      try {
-        const usersSnapshot = await getDocs(collection(db, 'users'));
-        const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setUsers(usersData);
-      } catch (error) {
-        console.error('Error fetching users:', error);
-        toast.error('Failed to load users');
-      }
-    };
+      // Filter logs to only show those after Oct 1, 2025
+      const filteredLogs = logsData.filter(log => {
+        const logDate = new Date(log.date || log.createdAt);
+        return logDate >= new Date("2025-10-01");
+      });
 
-    fetchLogs();
-    fetchUsers();
-  }, []);
+      setLogs(filteredLogs);
+    } catch (error) {
+      console.error("Error fetching payment logs:", error);
+      toast.error("Failed to load logs");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchPaymentLogs();
+}, []);
+
 
   const handleLogout = async () => {
     try {

@@ -236,9 +236,7 @@ function MyApp({ Component, pageProps }) {
           <h1 className="text-3xl font-semibold text-gray-900 mb-4">
             Access Denied
           </h1>
-          <p className="text-gray-600 mb-6 text-lg leading-relaxed">
-            Your IP address is not authorized to access Samwega Debt Management. Please contact the administrator for assistance.
-          </p>
+        
         </div>
       </div>
     );

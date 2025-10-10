@@ -1,8 +1,13 @@
 const express = require('express');
 const { authenticate } = require('../middleware/auth');
 const smsService = require('../services/sms');
-const { getFirestore } = require('../services/firebase');
-
+const { getFirestore, getFirestoreApp } = require('../services/firebase');
+const pdfParse = require('pdf-parse');
+const formidable = require('formidable');
+const fs = require('fs');
+const { OpenAI } = require('openai');
+const FormData = require('form-data');
+const axios = require('axios');
 const router = express.Router();
 
 // Approve manual payment (admin only - can be called via special endpoint)
@@ -120,4 +125,92 @@ router.get('/instructions/:debtCode', authenticate, async (req, res) => {
   }
 });
 
+
+
+
+
+
+
+
+
+
+
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY, // Add to .env file
+});
+
+router.post('/process-statement', authenticate, async (req, res) => {
+  let file = null; // Declare file in outer scope for cleanup
+  try {
+    const form = new formidable.IncomingForm({
+      keepExtensions: false,
+      maxFileSize: 10 * 1024 * 1024, // 10MB limit
+    });
+
+    const [fields, files] = await form.parse(req);
+    const bank = fields.bank?.[0];
+    const logs = JSON.parse(fields.logs?.[0] || '[]');
+    file = files.file?.[0]; // Assign file for cleanup
+
+    console.log(`Processing request - Bank: ${bank}, Logs count: ${logs.length}, File size: ${file.size} bytes`);
+    if (!bank || bank !== 'Equity' || !file) {
+      return res.status(400).json({ success: false, error: 'Invalid bank or missing file' });
+    }
+
+    // Upload file to OpenAI
+    const formData = new FormData();
+    formData.append('file', fs.createReadStream(file.filepath), { filename: file.originalFilename });
+    formData.append('purpose', 'assistants'); // Still required for file upload
+
+    const uploadResponse = await axios.post('https://api.openai.com/v1/files', formData, {
+      headers: {
+        ...formData.getHeaders(),
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+    });
+    const fileId = uploadResponse.data.id;
+    console.log(`File uploaded to OpenAI, ID: ${fileId}`);
+
+    // Prepare prompt for chat completion
+    const prompt = `
+      You are a transaction verification assistant. Analyze the uploaded PDF bank statement from Equity Bank (file ID: ${fileId}).
+      Match transactions against the provided JSON logs: ${JSON.stringify(logs)}.
+      Output a structured JSON: { "success": true, "matches": [{ "logId": "1", "verified": true, "details": "Matched amount 100 on date X" }], "unmatched": ["logIds"], "summary": "X matches found" }.
+      Ignore non-transaction data and focus on amounts, codes, or references.
+    `;
+
+    // Call chat completion with file context
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: prompt },
+            { type: 'file', file_id: fileId }, // Reference the uploaded file
+          ],
+        },
+      ],
+      response_format: { type: 'json_object' }, // Ensure JSON output
+    });
+
+    const result = JSON.parse(completion.choices[0].message.content);
+    console.log('Verification result:', result);
+
+    res.json({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    console.error('Processing error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  } finally {
+    if (file && file.filepath) fs.unlinkSync(file.filepath); // Clean up temp file if exists
+  }
+});
 module.exports = router;
+
+
+
+

@@ -6,6 +6,7 @@ import { useAuth } from './_app';
 import { toast } from 'react-hot-toast';
 import { Home, User, Upload } from 'lucide-react';
 import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
+import apiService from '../lib/api';
 
 export default function PaymentLogs() {
   const [logs, setLogs] = useState([]);
@@ -25,7 +26,7 @@ export default function PaymentLogs() {
   const [importLoading, setImportLoading] = useState(false);
   const { user } = useAuth();
   const router = useRouter();
-
+const [processorStatus, setProcessorStatus] = useState(true); // New state for processor status
   // Define bank options
   const bankOptions = ['Equity', 'Old KCB', 'New KCB', 'Old Absa', 'New Absa', 'Family'];
 
@@ -156,41 +157,42 @@ export default function PaymentLogs() {
     }
   };
 
-  const handleSubmit = async () => {
-    if (!paymentMethodFilter || paymentMethodFilter === 'all' || !bankOptions.includes(paymentMethodFilter) || !file) {
-      toast.error('Please select a bank payment method and upload a file');
-      return;
+const handleSubmit = async () => {
+  if (!paymentMethodFilter || paymentMethodFilter === 'all' || !bankOptions.includes(paymentMethodFilter) || !file) {
+    toast.error('Please select a bank payment method and upload a file');
+    return;
+  }
+
+  setImportLoading(true);
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('bank', paymentMethodFilter);
+  formData.append('logs', JSON.stringify(filteredLogs));
+
+  console.log('File object:', file);
+  for (let pair of formData.entries()) {
+    console.log('FormData entry:', pair[0], pair[1]);
+  }
+
+  try {
+    const res = await apiService.payments.processStatement(formData);
+    if (res.data.success) {
+      toast.success('Statement processed successfully');
+      const logsSnapshot = await getDocs(collection(db, 'payment_logs'));
+      const logsData = logsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setLogs(logsData);
+    } else {
+      toast.error(res.data.error || 'Failed to process statement');
     }
-
-    setImportLoading(true);
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('bank', paymentMethodFilter);
-
-    try {
-      const res = await fetch('/api/process-statement', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (res.ok) {
-        toast.success('Statement processed successfully');
-        const logsSnapshot = await getDocs(collection(db, 'payment_logs'));
-        const logsData = logsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setLogs(logsData);
-      } else {
-        const errorData = await res.json();
-        toast.error(errorData.message || 'Failed to process statement');
-      }
-    } catch (error) {
-      console.error('Error processing statement:', error);
-      toast.error('Error processing statement');
-    } finally {
-      setImportLoading(false);
-      setShowImportModal(false);
-      setFile(null);
-    }
-  };
+  } catch (error) {
+    console.error('Error processing statement:', error);
+    toast.error('Error processing statement');
+  } finally {
+    setImportLoading(false);
+    setShowImportModal(false);
+    setFile(null);
+  }
+};
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -341,8 +343,8 @@ export default function PaymentLogs() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {log.processedAt 
-                        ? new Date(log.processedAt.toDate()).toLocaleDateString() 
-                        : new Date(log.transactionDate.toDate()).toLocaleDateString() 
+                        ? new Date(log.processedAt?.toDate()).toLocaleDateString() 
+                        : new Date(log.transactionDate?.toDate()).toLocaleDateString() 
                       }
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.transactionCode || log.transactionId || log.chequeNumber || log.paymentMethod}</td>
@@ -377,9 +379,9 @@ export default function PaymentLogs() {
               <p><strong className="text-gray-900">Processed By:</strong> {selectedLog.paymentMethod === 'mpesa_paybill' ? 'System' : selectedLog.createdBy || 'Unknown'}</p>
               <p><strong className="text-gray-900">Payment Method:</strong> {selectedLog.paymentMethod === 'bank' ? `Bank - ${selectedLog.bankDetails?.bankName || 'Unknown'}` : selectedLog.paymentMethod}</p>
               <p><strong className="text-gray-900">Transaction Date:</strong> {selectedLog.processedAt 
-                ? (selectedLog.processedAt.toDate 
-                  ? new Date(selectedLog.processedAt.toDate()).toLocaleString() 
-                  : new Date(selectedLog.processedAt.replace(' ', ' ')).toLocaleString()
+                ? (selectedLog.processedAt?.toDate 
+                  ? new Date(selectedLog.processedAt?.toDate()).toLocaleString() 
+                  : new Date(selectedLog.processedAt?.replace(' ', ' ')).toLocaleString()
                 ) || 'N/A'
                 : 'N/A'}</p>
               <p><strong className="text-gray-900">Transaction Code:</strong> {selectedLog.transactionCode || selectedLog.transactionId || selectedLog.chequeNumber || selectedLog.paymentMethod}</p>
@@ -405,9 +407,9 @@ export default function PaymentLogs() {
               <p><strong>Account Number:</strong> {selectedLog.accountNumber}</p>
               <p><strong>Amount:</strong> {formatCurrency(selectedLog.amount)}</p>
               <p><strong>Transaction Date:</strong> {selectedLog.processedAt 
-                ? (selectedLog.processedAt.toDate 
-                  ? new Date(selectedLog.processedAt.toDate()).toLocaleString() 
-                  : new Date(selectedLog.processedAt.replace(' ', ' ')).toLocaleString()
+                ? (selectedLog.processedAt?.toDate 
+                  ? new Date(selectedLog.processedAt?.toDate()).toLocaleString() 
+                  : new Date(selectedLog.processedAt?.replace(' ', ' ')).toLocaleString()
                 ) || 'N/A'
                 : 'N/A'}</p>
               <p><strong>Transaction Code:</strong> {selectedLog.transactionCode || selectedLog.transactionId || selectedLog.chequeNumber || selectedLog.paymentMethod}</p>

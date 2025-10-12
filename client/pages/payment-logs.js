@@ -43,16 +43,36 @@ useEffect(() => {
         ...doc.data(),
       }));
 
-      // Filter logs to only show those after Oct 1, 2025
+      // Filter logs after Oct 1, 2025
       const filteredLogs = logsData.filter(log => {
-        console.log(log);
-        //transactionDate
-
-        const logDate = new Date(log.processedAt ? log.processedAt.seconds * 1000 : log.transactionDate ? log.transactionDate.seconds * 1000 : null);
+        const logDate = new Date(
+          log.processedAt
+            ? log.processedAt.seconds * 1000
+            : log.transactionDate
+            ? log.transactionDate.seconds * 1000
+            : 0
+        );
         return logDate >= new Date("2025-10-01");
       });
 
-      setLogs(filteredLogs);
+      // ✅ Remove duplicates for mpesa_paybill based on transactionCode
+      const uniqueLogsMap = new Map();
+
+      filteredLogs.forEach(log => {
+        if (log.paymentMethod === "mpesa_paybill") {
+          // Only add if transactionCode hasn’t been added before
+          if (!uniqueLogsMap.has(log.transactionCode)) {
+            uniqueLogsMap.set(log.transactionCode, log);
+          }
+        } else {
+          // For non-mpesa_paybill, include them normally
+          uniqueLogsMap.set(`${log.paymentMethod}_${log.id}`, log);
+        }
+      });
+
+      const uniqueLogs = Array.from(uniqueLogsMap.values());
+
+      setLogs(uniqueLogs);
     } catch (error) {
       console.error("Error fetching payment logs:", error);
       toast.error("Failed to load logs");
@@ -63,6 +83,7 @@ useEffect(() => {
 
   fetchPaymentLogs();
 }, []);
+
 
 
   const handleLogout = async () => {

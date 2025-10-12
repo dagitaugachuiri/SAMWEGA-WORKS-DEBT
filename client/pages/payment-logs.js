@@ -81,7 +81,20 @@ useEffect(() => {
     }
   };
 
-  fetchPaymentLogs();
+
+    const fetchUsers = async () => {
+      try {
+        const usersSnapshot = await getDocs(collection(db, 'users'));
+        const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setUsers(usersData);
+      } catch (error) {
+        console.error('Error fetching users:', error);
+        toast.error('Failed to load users');
+      }
+    };
+
+    fetchUsers();
+    fetchPaymentLogs();
 }, []);
 
 

@@ -126,7 +126,6 @@ router.get('/instructions/:debtCode', authenticate, async (req, res) => {
   }
 });
 
-// Generate PDF for payment logs
 router.post('/generate-pdf', authenticate, async (req, res) => {
   try {
     const { logs, stats } = req.body;
@@ -142,77 +141,79 @@ router.post('/generate-pdf', authenticate, async (req, res) => {
       }).format(amount);
 
     // Initialize PDFDocument
-    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+    const doc = new PDFDocument({ size: 'A4', margin: 35 });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader(
       'Content-Disposition',
       `attachment; filename=payment_logs_${new Date().toISOString().split('T')[0]}.pdf`
     );
-
     doc.pipe(res);
 
-    // 🧾 Title Section
+    // 🧾 Title
     doc.font('Helvetica-Bold')
-      .fontSize(16)
+      .fontSize(14)
       .text('Samwega Payment Logs Report', { align: 'center' });
 
-    let y = 90;
-    doc.moveTo(50, y).lineTo(550, y).strokeColor('#00695C').stroke();
-    y += 20;
+    let y = 80;
+    doc.moveTo(35, y).lineTo(560, y).strokeColor('#00695C').stroke();
+    y += 15;
 
-    // 📊 Summary Section
-    doc.font('Helvetica').fontSize(10).fillColor('#333');
-    doc.text(`Generated on: ${new Date().toLocaleString()}`, 50, y); y += 14;
-    doc.text(`Total Logs: ${stats.total}`, 50, y); y += 14;
-    doc.text(`Total Amount: ${formatCurrency(stats.totalAmount)}`, 50, y); y += 20;
+    // 📊 Summary
+    doc.font('Helvetica').fontSize(8).fillColor('#333');
+    doc.text(`Generated on: ${new Date().toLocaleString()}`, 35, y); y += 11;
+    doc.text(`Total Logs: ${stats.total}`, 35, y); y += 11;
+    doc.text(`Total Amount: ${formatCurrency(stats.totalAmount)}`, 35, y); y += 16;
 
     // 🧠 Table Header
     const headers = ['Account Number', 'Amount', 'Processed By', 'Date', 'Transaction Code'];
 
-    // Adjusted column widths (more space for Transaction Code)
-    const colX = [50, 150, 250, 370, 470];
-    const colWidth = [100, 100, 120, 100, 150];
+    // Tighter layout (more space for transaction column)
+    const colX = [35, 125, 210, 325, 425];
+    const colWidth = [85, 85, 110, 95, 150];
 
     // Header background
-    doc.font('Helvetica-Bold').fontSize(10);
-    doc.rect(50, y, 540, 22).fill('#00695C');
+    doc.font('Helvetica-Bold').fontSize(8);
+    doc.rect(35, y, 540, 18).fill('#00695C');
     doc.fillColor('white');
     headers.forEach((header, i) => {
-      doc.text(header, colX[i] + 4, y + 6, {
+      const align = i === 1 ? 'right' : 'left';
+      const offset = i === 1 ? -2 : 4; // right-align Amount header properly
+      doc.text(header, colX[i] + offset, y + 5, {
         width: colWidth[i] - 8,
-        align: 'left',
+        align,
       });
     });
     doc.fillColor('black');
-    y += 26;
+    y += 20;
 
     // 🗂️ Table Data
-    doc.font('Helvetica').fontSize(9);
+    doc.font('Helvetica').fontSize(7.5);
 
     logs.forEach((log, index) => {
       if (y > 760) {
-        // Page break
         doc.addPage();
-        y = 50;
+        y = 45;
 
-        // Redraw header on new page
-        doc.font('Helvetica-Bold').fontSize(10);
-        doc.rect(50, y, 540, 22).fill('#00695C');
+        // Redraw header
+        doc.font('Helvetica-Bold').fontSize(8);
+        doc.rect(35, y, 540, 18).fill('#00695C');
         doc.fillColor('white');
         headers.forEach((header, i) => {
-          doc.text(header, colX[i] + 4, y + 6, {
+          const align = i === 1 ? 'right' : 'left';
+          const offset = i === 1 ? -2 : 4;
+          doc.text(header, colX[i] + offset, y + 5, {
             width: colWidth[i] - 8,
-            align: 'left',
+            align,
           });
         });
         doc.fillColor('black');
-        y += 26;
-        doc.font('Helvetica').fontSize(9);
+        y += 20;
+        doc.font('Helvetica').fontSize(7.5);
       }
 
       // Alternate row background
       if (index % 2 === 0) {
-        doc.rect(50, y, 540, 20).fill('#F9F9F9').fillColor('black');
+        doc.rect(35, y, 540, 16).fill('#F9F9F9').fillColor('black');
       }
 
       const row = [
@@ -227,31 +228,28 @@ router.post('/generate-pdf', authenticate, async (req, res) => {
         log.transactionCode || 'N/A',
       ];
 
-      // Render each cell (with wrapping for long text)
       row.forEach((cell, i) => {
-        const textOptions = {
+        const align = i === 1 ? 'right' : 'left';
+        const offset = i === 1 ? -2 : 4;
+        doc.text(String(cell), colX[i] + offset, y + 4, {
           width: colWidth[i] - 8,
-          align: i === 1 ? 'right' : 'left',
-        };
-        doc.text(String(cell), colX[i] + 4, y + 5, textOptions);
+          align,
+        });
       });
 
-      y += 20;
+      y += 16;
     });
 
     // ✅ Footer
-    if (y < 780) {
-      y += 20;
-    }
+    if (y < 780) y += 20;
     doc.font('Helvetica-Oblique')
-      .fontSize(8)
+      .fontSize(7)
       .fillColor('#666')
-      .text(`Generated by Samwega System • ${new Date().toLocaleString()}`, 50, y, {
+      .text(`Generated by Samwega System • ${new Date().toLocaleString()}`, 35, y, {
         align: 'center',
-        width: 500,
+        width: 520,
       });
 
-    // Finalize document
     doc.end();
   } catch (error) {
     console.error('Error generating PDF:', error);
@@ -260,6 +258,7 @@ router.post('/generate-pdf', authenticate, async (req, res) => {
       .json({ error: 'Failed to generate PDF', details: error.message });
   }
 });
+
 
 
 

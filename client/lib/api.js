@@ -49,8 +49,8 @@ api.interceptors.response.use(
 export const apiService = {
   payments: {
     getProcessorStatus: () => api.get('/api/payments/processor/status'),
-    processStatement: (data) => api.post('/api/payments/process-statement', data), // Remove explicit headers
-    checkDebt: (debtCode) => api.post('/api/payments/processor/check-debt', { debtCode }),
+   generatePDF: (data) => api.post('/api/payments/generate-pdf', data, { responseType: 'blob' }),
+       checkDebt: (debtCode) => api.post('/api/payments/processor/check-debt', { debtCode }),
   },
   // Debt management
   debts: {

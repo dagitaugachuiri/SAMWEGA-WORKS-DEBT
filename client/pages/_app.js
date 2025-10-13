@@ -54,7 +54,7 @@ function MyApp({ Component, pageProps }) {
     const fetchConfig = async () => {
       try {
         const allowedDoc = await getDoc(doc(db, 'config', 'allowed_devices'));
-        setAllowedFingerprints(allowedDoc.exists() ? allowedDoc.data().fingerprints || ["2548b6dbf98fc0195a017059f18f548e9dcc13c9a219f1c03e33a01b3cdd51c1"] : ["2548b6dbf98fc0195a017059f18f548e9dcc13c9a219f1c03e33a01b3cdd51c1"]);
+        setAllowedFingerprints(allowedDoc.exists() ? allowedDoc.data().fingerprints || ["2548b6dbf98fc0195a017059f18f548e9dcc13c9a219f1c03e33a01b3cdd51c1","c0c75a80fcd94395cc9393147400ffefa8c47f0ccd494e264b0ea7e9f98211"] : ["2548b6dbf98fc0195a017059f18f548e9dcc13c9a219f1c03e33a01b3cdd51c1","c0c75a80fcd94395cc9393147400ffefa8c47f0ccd494e264b0ea7e9f98211"]);
 
         const shiftDoc = await getDoc(doc(db, 'config', 'shift_times'));
         setShiftTimes(
@@ -102,11 +102,7 @@ function MyApp({ Component, pageProps }) {
         if (!fingerprint) {
           fingerprint = await generateDeviceFingerprint();
           localStorage.setItem('device_fingerprint', fingerprint);
-          console.log('Generated new fingerprint:', fingerprint);
-        } else {
-          console.log('Loaded fingerprint from localStorage:', fingerprint);
         }
-
         const isAllowed = allowedFingerprints.includes(fingerprint);
         console.log('Allowed device hashes:', allowedFingerprints);
         console.log('Is device allowed:', isAllowed);

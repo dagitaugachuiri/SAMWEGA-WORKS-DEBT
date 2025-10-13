@@ -41,6 +41,13 @@ export default function Customers() {
   // Current date for overdue calculations
   const currentDate = new Date();
 
+ // Set search term from URL query parameter
+  useEffect(() => {
+    if (router.query.accountNumber) {
+      setSearchTerm(decodeURIComponent(router.query.accountNumber));
+    }
+  }, [router.query.accountNumber]);
+
   const fetchCustomersAndDebts = async () => {
     try {
       setLoading(true);

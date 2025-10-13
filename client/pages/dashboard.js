@@ -36,6 +36,13 @@ export default function Dashboard() {
 
   const router = useRouter();
 
+  // Set search term from URL query parameter
+  useEffect(() => {
+    if (router.query.accountNumber) {
+      setSearchTerm(decodeURIComponent(router.query.accountNumber));
+    }
+  }, [router.query.accountNumber]);
+
   // API Functions
   const fetchDebts = async () => {
     try {
@@ -154,13 +161,13 @@ export default function Dashboard() {
       : true;
 
     const bankOptions = ['Equity', 'Old KCB', 'New KCB', 'Old Absa', 'New Absa', 'Family'];
- const matchesMethod = methodFilter === 'all'
-  ? true
-  : methodFilter === 'mpesa_paybill' || methodFilter === 'manual_mpesa' || methodFilter === 'cash'
-    ? debt.paidPaymentMethod === methodFilter
-    : methodFilter === 'cheque'
-      ? debt.paymentMethod === methodFilter
-      : bankOptions.includes(methodFilter) && debt.bankDetails?.some(detail => detail.bankName === methodFilter);
+    const matchesMethod = methodFilter === 'all'
+      ? true
+      : methodFilter === 'mpesa_paybill' || methodFilter === 'manual_mpesa' || methodFilter === 'cash'
+        ? debt.paidPaymentMethod === methodFilter
+        : methodFilter === 'cheque'
+          ? debt.paymentMethod === methodFilter
+          : bankOptions.includes(methodFilter) && debt.bankDetails?.some(detail => detail.bankName === methodFilter);
 
     const matchesStatus = statusFilter === 'all'
       ? true
@@ -237,14 +244,14 @@ export default function Dashboard() {
                   <CreditCard className="h-4 w-4" />
                   <span>User Payments</span>
                 </button>
-               <button
-              onClick={handleManageCustomers}
-              className="btn-secondary flex items-center space-x-2"
-              data-tooltip-id="customers-tooltip"
-            >
-              <Users className="h-4 w-4" />
-              <span>Customers</span>
-            </button>
+                <button
+                  onClick={handleManageCustomers}
+                  className="btn-secondary flex items-center space-x-2"
+                  data-tooltip-id="customers-tooltip"
+                >
+                  <Users className="h-4 w-4" />
+                  <span>Customers</span>
+                </button>
                 
                 <UserMenu 
                   user={user}

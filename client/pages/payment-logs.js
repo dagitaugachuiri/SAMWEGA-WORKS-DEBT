@@ -21,62 +21,26 @@ export default function PaymentLogs() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [showAIModal, setShowAIModal] = useState(false);
-  const [copied, setCopied] = useState(false);
-
   const { user } = useAuth();
   const router = useRouter();
   const bankOptions = ['Equity', 'Old KCB', 'New KCB', 'Old Absa', 'New Absa', 'Family'];
 
-  // ✅ AI Verification Prompt
-const aiPrompt = `
-This is an instruction prompt. Do not respond or process until both files have been uploaded.
+  const aiPrompt = `You are a financial analyst tasked with verifying payment transactions for accuracy and legitimacy. Below is a JSON representation of a payment log from a financial system. Your job is to analyze the provided transaction details and determine if the transaction is valid and should be verified. Consider factors such as the consistency of the account number, amount, payment method, transaction date, and transaction code. If any fields are missing or inconsistent, note them and suggest whether the transaction should be verified or flagged for further review. Provide a clear explanation for your decision and, if applicable, recommend specific actions to resolve any issues.
 
-You will receive two files:
-1. **Samwega Payment Log File** – records of payments received through the Samwega system (fields may include transaction code, payer name, amount, payment method, date, and reference).
-2. **Bank Statement File** – the bank's transaction record containing both money-in (credits) and money-out (debits) entries.
+Here is the payment log:
+{log}
 
-Once both files are uploaded:
-- Focus exclusively on **money-in (credit)** transactions from the bank statement.
-- Cross-check all Samwega payment log entries against these bank credit records.
-- Verify that every transaction in the Samwega log appears in the bank credits.
+Please provide:
+1. A boolean indicating whether the transaction should be verified (true/false).
+2. A detailed explanation of your decision, including any issues found in the transaction details.
+3. Recommendations for any further actions if the transaction is flagged for review.
 
-Return a structured report containing:
-1. ✅ **Matching Transactions** – where amount, date (within a reasonable margin), and transaction reference align.
-2. ⚠️ **Missing or Unmatched Transactions** – payments in the Samwega log not found in the bank credits.
-3. 🔍 **Discrepancies** – mismatched amounts or dates between the two records.
-4. 📊 **Summary Totals** – total transaction counts and total amounts from both sources (Samwega log vs. bank credits).
-
-Guidelines:
-- Process only after both files are uploaded.
-- Ignore any money-out (debit) transactions in the bank file.
-- Do not assume or infer any data that isn’t explicitly present.
-- Ignore duplicate records unless they affect totals or matching accuracy.
-`;
-
-
-
-  const handleCopyPrompt = async () => {
-    // Copy the AI prompt to clipboard, then open Grok AI in a new tab with the prompt encoded in the URL.
-    // If the popup is blocked, show a toast asking the user to paste the prompt manually.
-    try {
-      await navigator.clipboard.writeText(aiPrompt);
-      setCopied(true);
-
-      // Try opening Grok with the prompt encoded. Grok's exact URL param may vary; this attempts a common query param.
-      const grokUrl = `https://grok.com/?q=${encodeURIComponent(aiPrompt)}`;
-      const newWindow = window.open(grokUrl, '_blank');
-
-      if (!newWindow) {
-        // Popup blocked — notify the user so they can paste manually
-        toast('Prompt copied to clipboard — please open your AI assistant and paste the prompt (popup blocked).');
-      }
-
-      setTimeout(() => setCopied(false), 2000);
-    } catch (error) {
-      console.error('Failed to copy prompt or open Grok:', error);
-      toast.error('Failed to copy prompt. Please copy it manually from the modal.');
-    }
-  };
+Return your response in the following JSON format:
+{
+  "shouldVerify": boolean,
+  "explanation": string,
+  "recommendations": string
+}`;
 
   useEffect(() => {
     const fetchPaymentLogs = async () => {
@@ -90,14 +54,12 @@ Guidelines:
         }));
 
         const filteredLogs = logsData.filter(log => {
-          const logDate = new Date(
-            log.processedAt
-              ? log.processedAt.seconds * 1000
-              : log.transactionDate
-              ? log.transactionDate.seconds * 1000
-              : 0
+          const logDate = new Date(log.processedAt? log.processedAt.seconds * 1000
+                                    : log.createdAt? log.createdAt.seconds * 1000
+                                    :  log.transactionDate.seconds * 1000
+                                    
           );
-          return logDate >= new Date("2025-10-01");
+          return logDate >= new Date("2025-10-09");
         });
 
         const uniqueLogsMap = new Map();
@@ -112,6 +74,7 @@ Guidelines:
         });
 
         const uniqueLogs = Array.from(uniqueLogsMap.values());
+        
         setLogs(uniqueLogs);
       } catch (error) {
         console.error("Error fetching payment logs:", error);
@@ -168,6 +131,24 @@ Guidelines:
         console.error('Error verifying transaction:', error);
         toast.error('Failed to verify transaction');
       }
+    }
+  };
+
+  const handleAccountNumberClick = (accountNumber) => {
+    if (/^\d{10}$/.test(accountNumber)) {
+      router.push(`/customers?accountNumber=${encodeURIComponent(accountNumber)}`);
+      return;
+    }
+    router.push(`/dashboard?accountNumber=${encodeURIComponent(accountNumber)}`);
+  };
+
+  const handleCopyPrompt = () => {
+    if (selectedLog) {
+      const logString = JSON.stringify(selectedLog, null, 2);
+      const promptWithLog = aiPrompt.replace('{log}', logString);
+      navigator.clipboard.writeText(promptWithLog);
+      toast.success('Prompt copied to clipboard!');
+      setShowAIModal(false);
     }
   };
 
@@ -312,7 +293,7 @@ Guidelines:
           </select>
           <input
             type="date"
-            min="2025-10-01"
+            min="2025-10-09"
             value={dateRange.start}
             onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
             className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-teal-500 text-sm"
@@ -344,10 +325,7 @@ Guidelines:
           >
             Reset
           </button>
-
-          {/* 🧠 Verify All Transactions with AI */}
-       
-
+          
           <button
             onClick={generatePDF}
             className="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-700 transition duration-200 flex items-center text-xs"
@@ -355,11 +333,10 @@ Guidelines:
             <DownloadIcon className="h-5 w-5 mr-2" />
             Download Statement
           </button>
-             <button
+          <button
             onClick={() => setShowAIModal(true)}
-            className="bg-sky-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-purple-700 transition duration-200 flex items-center text-xs"
+            className="bg-sky-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-sky-700 transition duration-200 flex items-center text-xs"
           >
-            <Brain className="h-5 w-5 mr-2" />
             Verify Transactions
           </button>
         </div>
@@ -387,7 +364,15 @@ Guidelines:
                     className="hover:bg-gray-50 transition duration-200 cursor-pointer"
                     onClick={() => handleLogClick(log)}
                   >
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{log.accountNumber}</td>
+                    <td 
+                      className="px-6 py-4 whitespace-nowrap text-sm text-blue-600 hover:underline cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleAccountNumberClick(log.accountNumber);
+                      }}
+                    >
+                      {log.accountNumber}
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(log.amount)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {log.paymentMethod === 'mpesa_paybill' ? 'System processed/auto' : log.createdBy || 'Unknown'}
@@ -425,36 +410,109 @@ Guidelines:
         </div>
       </main>
 
-      {/* 🧠 AI Verification Modal */}
-      {showAIModal && (
+      {/* Detail Modal */}
+      {showDetailModal && selectedLog && (
         <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-4xl h-[450px] overflow-y-auto">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4 flex items-center">
-              <Brain className="h-6 w-6 mr-2 text-purple-600" />
-              Verify Transactions with AI
-            </h2>
-            <p className="text-sm text-gray-700 mb-4">
-              Copy the following prompt and paste it into your AI assistant to cross-check Samwega payment logs against the uploaded bank statement files.
-            </p>
-            <textarea
-              readOnly
-              value={aiPrompt.trim()}
-              className="w-full h-[200px] p-3 border border-gray-300 rounded-lg bg-gray-50 text-sm text-gray-800 focus:outline-none"
-            />
-            <div className="flex justify-between items-center mt-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">Payment Log Details</h2>
+            <div className="space-y-4 text-sm text-gray-700">
+              <p><strong className="text-gray-900">Account Number:</strong> {selectedLog.accountNumber}</p>
+              <p><strong className="text-gray-900">Amount:</strong> {formatCurrency(selectedLog.amount)}</p>
+              <p><strong className="text-gray-900">Processed By:</strong> {selectedLog.paymentMethod === 'mpesa_paybill' ? 'System' : selectedLog.createdBy || 'Unknown'}</p>
+              <p><strong className="text-gray-900">Payment Method:</strong> {selectedLog.paymentMethod === 'bank' ? `Bank - ${selectedLog.bankDetails?.bankName || 'Unknown'}` : selectedLog.paymentMethod}</p>
+              <p><strong className="text-gray-900">Transaction Date:</strong> {selectedLog.processedAt 
+                ? (selectedLog.processedAt.toDate 
+                  ? new Date(selectedLog.processedAt.toDate()).toLocaleString() 
+                  : new Date(selectedLog.processedAt.replace(' ', ' ')).toLocaleString()
+                ) || 'N/A'
+                : 'N/A'}</p>
+              <p><strong className="text-gray-900">Transaction Code:</strong> {selectedLog.transactionCode || selectedLog.transactionId || selectedLog.chequeNumber || selectedLog.paymentMethod}</p>
+              <p><strong className="text-gray-900">Status:</strong> {selectedLog.success ? 'Success' : 'Failed'}</p>
+              <p><strong className="text-gray-900">Verified:</strong> {selectedLog.verified ? 'Yes' : 'No'}</p>
+            </div>
+            <button
+              onClick={() => setShowDetailModal(false)}
+              className="mt-6 w-full bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition duration-200"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Verify Modal */}
+      {showVerifyModal && selectedLog && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">Confirm Verification</h2>
+            <div className="space-y-4 text-sm text-gray-700">
+              <p>Are you sure you want to verify this transaction?</p>
+              <p><strong>Account Number:</strong> {selectedLog.accountNumber}</p>
+              <p><strong>Amount:</strong> {formatCurrency(selectedLog.amount)}</p>
+              <p><strong>Transaction Date:</strong> {selectedLog.processedAt 
+                ? (selectedLog.processedAt.toDate 
+                  ? new Date(selectedLog.processedAt.toDate()).toLocaleString() 
+                  : new Date(selectedLog.processedAt.replace(' ', ' ')).toLocaleString()
+                ) || 'N/A'
+                : 'N/A'}</p>
+              <p><strong>Transaction Code:</strong> {selectedLog.transactionCode || selectedLog.transactionId || selectedLog.chequeNumber || selectedLog.paymentMethod}</p>
+            </div>
+            <div className="mt-6 flex justify-end space-x-4">
               <button
-                onClick={handleCopyPrompt}
-                className="flex items-center space-x-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition duration-200"
+                onClick={() => setShowVerifyModal(false)}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition duration-200"
+                disabled={loading}
               >
-                {copied ? <Check className="h-4 w-4" /> : <Clipboard className="h-4 w-4" />}
-                {/* open grok  after copying */}
-                <span>{copied ? 'Copied!' : 'Open AI Assistant'}</span>
+                Cancel
               </button>
               <button
-                onClick={() => setShowAIModal(false)}
-                className="px-4 py-2 bg-gray-300 text-gray-800 rounded-lg hover:bg-gray-400 transition duration-200"
+                onClick={async () => {
+                  setLoading(true);
+                  await confirmVerify();
+                  setLoading(false);
+                }}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition duration-200 flex items-center justify-center"
+                disabled={loading}
               >
-                Close
+                {loading ? (
+                  <svg className="animate-spin h-5 w-5 mr-2 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                  </svg>
+                ) : null}
+                Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Verification Modal */}
+      {showAIModal && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-md">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-4">AI Verification Prompt</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Copy the prompt below to use with an AI model for transaction verification:
+            </p>
+            <div className="bg-gray-100 p-4 rounded-lg mb-4 max-h-64 overflow-y-auto">
+              <pre className="text-xs text-gray-800 whitespace-pre-wrap">
+                {selectedLog ? aiPrompt.replace('{log}', JSON.stringify(selectedLog, null, 2)) : 'Select a log to generate the prompt.'}
+              </pre>
+            </div>
+            <div className="flex justify-end space-x-4">
+              <button
+                onClick={() => setShowAIModal(false)}
+                className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition duration-200"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCopyPrompt}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-200"
+                disabled={!selectedLog}
+              >
+                Copy Prompt
               </button>
             </div>
           </div>

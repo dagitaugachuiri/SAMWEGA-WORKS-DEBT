@@ -84,7 +84,6 @@ export default function CustomerDebts() {
         }
       }
     };
-
     checkUserStatus();
   }, [user?.uid]);
 
@@ -96,6 +95,11 @@ export default function CustomerDebts() {
   // Placeholder for processing payment
   const handleProcessPayment = (debt) => {
     toast.success(`Processing payment for Debt #${debt.debtCode}`);
+  };
+
+  // Navigate to dashboard with accountNumber as search term
+  const handleDebtCardClick = (debtCode) => {
+    router.push(`/dashboard?accountNumber=${encodeURIComponent(debtCode)}`);
   };
 
   if (!user) {
@@ -269,6 +273,7 @@ export default function CustomerDebts() {
                       key={debt.debtCode}
                       className="border rounded-lg p-4 hover:shadow transition-shadow cursor-pointer"
                       data-tooltip-id={`debt-tooltip-${debt.debtCode}`}
+                      onClick={() => handleDebtCardClick(debt.debtCode)}
                     >
                       <div className="flex justify-between items-center mb-2">
                         <div className="flex items-center gap-2">
@@ -327,6 +332,7 @@ export default function CustomerDebts() {
                       <div className="flex items-center gap-2 mb-2">
                         <User className="h-4 w-4 text-gray-400" />
                         <span className="text-sm text-gray-600">Created By: {debt.createdBy || 'N/A'}</span>
+                        <span className="text-sm text-gray-600">Vehicle: {debt.vehiclePlate || 'N/A'}</span>
                       </div>
 
                       {debt.status !== 'paid' && (

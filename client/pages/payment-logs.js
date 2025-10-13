@@ -16,7 +16,7 @@ export default function PaymentLogs() {
   const [userFilter, setUserFilter] = useState('all');
   const [paymentMethodFilter, setPaymentMethodFilter] = useState('all');
   const [verificationFilter, setVerificationFilter] = useState('all');
-  const [dateRange, setDateRange] = useState({ start: '2025-10-01', end: '' });
+  const [dateRange, setDateRange] = useState({ start: '2025-10-09', end: '' });
   const [selectedLog, setSelectedLog] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showVerifyModal, setShowVerifyModal] = useState(false);

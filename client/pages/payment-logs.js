@@ -68,7 +68,7 @@ Guidelines:
               ? log.processedAt.seconds * 1000
               : log.createdAt
               ? log.createdAt.seconds * 1000
-              : log.transactionDate.seconds * 1000
+              : log.transactionDate?.seconds * 1000
           );
           return logDate >= new Date("2025-10-09");
         });

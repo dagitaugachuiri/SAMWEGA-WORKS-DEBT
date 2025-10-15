@@ -33,7 +33,7 @@ export default function Dashboard() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const { user } = useAuth();
   const [isDisabled, setIsDisabled] = useState(false);
-
+  const [userData, setUserData] = useState(null);
   const router = useRouter();
 
   // Set search term from URL query parameter
@@ -70,18 +70,18 @@ export default function Dashboard() {
     }
   }, [user]);
 
-  useEffect(() => {
-    const handleRouteChange = () => {
-      if (user) {
-        fetchDebts();
-      }
-    };
+  // useEffect(() => {
+  //   const handleRouteChange = () => {
+  //     if (user) {
+  //       fetchDebts();
+  //     }
+  //   };
 
-    router.events.on('routeChangeComplete', handleRouteChange);
-    return () => {
-      router.events.off('routeChangeComplete', handleRouteChange);
-    };
-  }, [user, router.events]);
+  //   router.events.on('routeChangeComplete', handleRouteChange);
+  //   return () => {
+  //     router.events.off('routeChangeComplete', handleRouteChange);
+  //   };
+  // }, [user, router.events]);
 
   useEffect(() => {
     const checkUserStatus = async () => {
@@ -90,7 +90,9 @@ export default function Dashboard() {
           const userDocRef = doc(db, 'users', user.uid);
           const userDoc = await getDoc(userDocRef);
           if (userDoc.exists()) {
+            setUserData(userDoc.data());
             setIsDisabled(userDoc.data().disabled || false);
+            
           }
         } catch (error) {
           console.error('Error checking user status:', error);
@@ -236,7 +238,9 @@ export default function Dashboard() {
                   <FileText className="h-4 w-4" />
                   <span>Reports</span>
                 </button>
-                <button
+                {userData?.role === 'admin' && (
+                  <>
+                   <button
                   data-tooltip-id="reports-tooltip"
                   onClick={handlePaymentsClick}
                   className="btn-secondary flex items-center space-x-2"
@@ -253,6 +257,10 @@ export default function Dashboard() {
                   <span>Customers</span>
                 </button>
                 
+                  </> 
+                  )
+                }
+               
                 <UserMenu 
                   user={user}
                   isDisabled={isDisabled}

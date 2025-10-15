@@ -11,6 +11,7 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
   const [formErrors, setFormErrors] = useState({});
   const [paymentMethod, setPaymentMethod] = useState('');
   const [creatorName, setCreatorName] = useState('Unknown');
+  const [showInstructions, setShowInstructions] = useState(false);
   const chequeDetailsRef = useRef(null);
   const mpesaDetailsRef = useRef(null);
   const bankDetailsRef = useRef(null);
@@ -195,6 +196,7 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
       <div className="bg-white rounded-lg p-6 w-full max-w-md">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold">Process Payment</h2>
+          
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="h-5 w-5" />
           </button>
@@ -415,7 +417,51 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
             </button>
           </div>
         </form>
+
+        <div className="mt-4 text-center">
+          <button
+            type="button"
+            onClick={() => setShowInstructions(true)}
+            className="text-blue-600 hover:text-blue-800 text-sm underline"
+          >
+            How to input transaction codes?
+          </button>
+        </div>
       </div>
+
+      {showInstructions && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold">Transaction Code Instructions</h3>
+              <button onClick={() => setShowInstructions(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="space-y-4 text-sm text-gray-700">
+          
+              <div>
+                <h4 className="font-medium text-gray-800">Personal A/C</h4>
+                <p className='text-sm' >For payments to Samwega personal account, append "/samwega" to the code, e.g., "REF12345/samwega".</p>
+              </div>
+              <div>
+                <h4 className="font-medium text-gray-800">Transaction amount is more than the debt amount</h4>
+                <p>Include the transaction amount in parentheses after the transaction code, e.g., "REF12345(1000)".</p>
+              </div>
+
+            </div>
+            <div className="mt-6">
+              <button
+                type="button"
+                onClick={() => setShowInstructions(false)}
+                className="w-full p-2 bg-gray-200 text-gray-800 rounded"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

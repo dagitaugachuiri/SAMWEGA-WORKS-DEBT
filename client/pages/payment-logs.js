@@ -5,7 +5,7 @@ import { auth, db } from '../lib/firebase';
 import { useAuth } from './_app';
 import { toast } from 'react-hot-toast';
 import { DownloadIcon, Home, Clipboard, Check, Brain } from 'lucide-react';
-import { collection, getDocs, doc, updateDoc, query } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, query, getDoc } from 'firebase/firestore';
 import apiService from '../lib/api';
 
 export default function PaymentLogs() {
@@ -22,6 +22,8 @@ export default function PaymentLogs() {
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [showAIModal, setShowAIModal] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [vehicles, setVehicles] = useState([]);
+  const [vehicleFilter, setVehicleFilter] = useState('all');
   const { user } = useAuth();
   const router = useRouter();
   const bankOptions = ['Equity', 'Old KCB', 'New KCB', 'Old Absa', 'New Absa', 'Family'];
@@ -38,8 +40,11 @@ Once both files are uploaded:
 - Focus exclusively on **money-in (credit)** transactions from the bank statement.
 - Cross-check all Samwega payment log entries against these bank credit records.
 - Verify that every transaction in the Samwega log appears in the bank credits.
+- Transaction codes in the Samwega log may have additional suffixes (e.g., "/samwega") or appended amounts in parentheses (e.g., "REF12345(1000)"). Strip these additions to match the core transaction code against the bank records.
+- Match transactions based on amount, date (allowing a small margin for processing delays), and transaction reference.
+- Transaction codes with appended amounts in parentheses (e.g., "REF12345(1000)") mean that the transaction amount is more than the debt amount in the Samwega Payment Log. In most cases the same transaction code will clear multiple debts. Ensure to match the full amount in such cases in the bank statement.
 
-Return a structured report containing:
+Return a structured markdown file report containing these Tabulated sections:
 1. ✅ **Matching Transactions** – where amount, date (within a reasonable margin), and transaction reference align.
 2. ⚠️ **Missing or Unmatched Transactions** – payments in the Samwega log not found in the bank credits.
 3. 🔍 **Discrepancies** – mismatched amounts or dates between the two records.
@@ -61,7 +66,8 @@ Guidelines:
           id: doc.id,
           ...doc.data(),
         }));
-
+// Filter logs to include only those that were successfully processed(log.success==true) and from 9th October  2025 onwards
+ 
         const filteredLogs = logsData.filter(log => {
           const logDate = new Date(
             log.processedAt
@@ -70,12 +76,33 @@ Guidelines:
               ? log.createdAt.seconds * 1000
               : log.transactionDate?.seconds * 1000
           );
-          return logDate >= new Date("2025-10-09");
+          return logDate >= new Date("2025-10-09") && log.success === true;
         });
 
-    
+  console.log("Fetched and filtered payment logs:", filteredLogs);
+  
       
-        setLogs(filteredLogs);
+//this is the console log for each payment log. i want to create a func that fetches debt details using its debtId and append the debt details to each payment log object 
+const fetchDebtDetails = async (debtId) => {
+  try {
+    const debtDoc = await getDoc(doc(db, 'debts', debtId));
+    if (debtDoc.exists()) {
+      return { id: debtDoc.id, ...debtDoc.data() };
+    }
+  } catch (error) {
+    console.error('Error fetching debt details:', error);
+  }
+  return null;
+};
+        const logsWithDebtDetails = await Promise.all(
+          filteredLogs.map(async (log) => {
+            const debtDetails = log.debtId ? await fetchDebtDetails(log.debtId) : null;
+            return { ...log, debtDetails };
+          })
+        );
+        console.log("Payment logs with debt details:", logsWithDebtDetails);
+        
+        setLogs(logsWithDebtDetails);
       } catch (error) {
         console.error("Error fetching payment logs:", error);
         toast.error("Failed to load logs");
@@ -95,6 +122,17 @@ Guidelines:
       }
     };
 
+    const fetchVehicles = async () => {
+      try {
+        const vehiclesSnapshot = await getDocs(collection(db, 'vehicles'));
+        const vehiclesData = vehiclesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setVehicles(vehiclesData);
+      } catch (error) {
+        console.error('Error fetching vehicles:', error);
+        toast.error('Failed to load vehicles');
+      }
+    };
+fetchVehicles();
     fetchUsers();
     fetchPaymentLogs();
   }, []);
@@ -171,6 +209,7 @@ Guidelines:
       log.transactionCode?.includes(searchTerm);
 
     const matchesUser = userFilter === 'all' ? true : log.createdBy === userFilter;
+    const matchesVehicle = vehicleFilter === 'all' ? true : log.debtDetails.vehiclePlate === vehicleFilter;
     const matchesVerification = verificationFilter === 'all' ? true : log.verified === (verificationFilter === 'verified');
     const matchesPaymentMethod =
       paymentMethodFilter === 'all'
@@ -196,7 +235,7 @@ Guidelines:
           })()
         : true;
 
-    return matchesSearch && matchesUser && matchesPaymentMethod && matchesDate && matchesVerification;
+    return matchesSearch && matchesUser && matchesPaymentMethod && matchesDate && matchesVerification && matchesVehicle;
   });
 
   const stats = {
@@ -285,6 +324,16 @@ Guidelines:
             <option value="all">All Users</option>
             {users.map(u => (
               <option key={u.id} value={u.name}>{u.name || u.email}</option>
+            ))}
+          </select>
+          <select
+            value={vehicleFilter}
+            onChange={(e) => setVehicleFilter(e.target.value)}
+            className="border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-teal-500 text-sm"
+          >
+            <option value="all">All Vehicles</option>
+            {vehicles.map(v => (
+              <option key={v.id} value={v.plateNumber}>{v.plateNumber}</option>
             ))}
           </select>
           <select

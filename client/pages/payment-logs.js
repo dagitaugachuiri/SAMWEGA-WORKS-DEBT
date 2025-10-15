@@ -209,10 +209,9 @@ fetchVehicles();
       log.transactionCode?.includes(searchTerm);
 
     const matchesUser = userFilter === 'all' ? true : log.createdBy === userFilter;
-    const matchesVehicle = vehicleFilter === 'all' ? true : log.debtDetails.vehiclePlate === vehicleFilter;
+    const matchesVehicle = vehicleFilter === 'all' ? true : log.debtDetails?.vehiclePlate === vehicleFilter;
     const matchesVerification = verificationFilter === 'all' ? true : log.verified === (verificationFilter === 'verified');
-    const matchesPaymentMethod =
-      paymentMethodFilter === 'all'
+    const matchesPaymentMethod = paymentMethodFilter === 'all'
         ? true
         : log.paymentMethod === 'mpesa_paybill' || log.paymentMethod === 'cash' || log.paymentMethod === 'mpesa'
         ? log.paymentMethod === paymentMethodFilter

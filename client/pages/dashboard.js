@@ -248,6 +248,10 @@ export default function Dashboard() {
                   <CreditCard className="h-4 w-4" />
                   <span>User Payments</span>
                 </button>
+               
+                  </> 
+                  )
+                }
                 <button
                   onClick={handleManageCustomers}
                   className="btn-secondary flex items-center space-x-2"
@@ -257,10 +261,6 @@ export default function Dashboard() {
                   <span>Customers</span>
                 </button>
                 
-                  </> 
-                  )
-                }
-               
                 <UserMenu 
                   user={user}
                   isDisabled={isDisabled}

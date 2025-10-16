@@ -98,7 +98,12 @@ const paymentSchema = Joi.object({
         return value;
       }),
     otherwise: Joi.optional()
-  })
+  }),
+  receiptNumber: Joi.when('paymentMethod', {
+    is: 'cash',
+    then: Joi.string().min(2).max(50).required(),
+    otherwise: Joi.optional(),
+  }),
 });
 
 // Validation middleware factory

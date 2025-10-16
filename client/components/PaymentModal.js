@@ -62,6 +62,7 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
     const chequeDate = formData.get('chequeDate');
     const paymentDate = formData.get('paymentDate');
     const phoneNumber = formData.get('phoneNumber') || debt.storeOwner.phoneNumber;
+    const receiptNumber = formData.get('receiptNumber');
 
     if (!amount || parseFloat(amount) <= 0) {
       errors.amount = 'Amount must be greater than 0';
@@ -70,6 +71,11 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
     if (!paymentMethod) {
       errors.paymentMethod = 'Payment method is required';
     }
+      if (paymentMethod === 'cash') {
+        if (!receiptNumber || receiptNumber.trim() === '') {
+          errors.receiptNumber = 'Receipt number is required for cash payments';
+        }
+      }
 
     if (paymentMethod !== 'cheque' && !paymentDate) {
       errors.paymentDate = 'Payment date is required';
@@ -241,6 +247,9 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
             amount: parseFloat(formData.get('amount')),
             transactionCode: formData.get('transactionCode')?.trim(),
           },
+        }),
+        ...(formData.get('paymentMethod') === 'cash' && {
+          receiptNumber: formData.get('receiptNumber')?.trim(),
         }),
       };
 
@@ -467,6 +476,26 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
                 />
                 {formErrors.chequeDate && (
                   <p className="text-red-500 text-sm mt-1">{formErrors.chequeDate}</p>
+                )}
+              </div>
+            </div>
+            <div className={`cash-details ${paymentMethod === 'cash' ? '' : 'hidden'}`}>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Receipt Number
+                </label>
+                <input
+                  type="text"
+                  name="receiptNumber"
+                  className={`input-field w-full p-2 border rounded ${
+                    formErrors.receiptNumber ? 'border-red-500' : ''
+                  }`}
+                  placeholder="Enter receipt number"
+                  required={paymentMethod === 'cash'}
+                  disabled={paymentMethod !== 'cash'}
+                />
+                {formErrors.receiptNumber && (
+                  <p className="text-red-500 text-sm mt-1">{formErrors.receiptNumber}</p>
                 )}
               </div>
             </div>

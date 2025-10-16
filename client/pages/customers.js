@@ -112,9 +112,9 @@ export default function Customers() {
 
       if (unmatchedCodes.size > 0) {
         console.warn(`Unmatched debts: ${unmatchedCodes.size} debt(s) with codes [${[...unmatchedCodes].join(', ')}]. Total: Unknown (no debt data available)`);
-        toast.error(`Some debt data could not be matched for ${unmatchedCodes.size} debt(s) [${[...unmatchedCodes].slice(0, 5).join(', ')}${unmatchedCodes.size > 5 ? '...' : ''}]. Total unmatched: Unknown. Contact support to resolve missing debt records.`, {
-          duration: 5000,
-        });
+        // toast.error(`Some debt data could not be matched for ${unmatchedCodes.size} debt(s) [${[...unmatchedCodes].slice(0, 5).join(', ')}${unmatchedCodes.size > 5 ? '...' : ''}]. Total unmatched: Unknown. Contact support to resolve missing debt records.`, {
+        //   duration: 5000,
+        // });
       }
 
       // Log sample customer for debugging
@@ -266,11 +266,11 @@ export default function Customers() {
           </div>
         </header>
         <main className="max-w-7xl mx-auto p-8">
-          {unmatchedDebtCodes.length > 0 && (
+          {/* {unmatchedDebtCodes.length > 0 && (
             <div className="mb-6 p-4 bg-yellow-100 text-yellow-800 rounded-lg">
               <p>Warning: Some debt data could not be matched for {unmatchedDebtCodes.length} debt(s) [{[...unmatchedDebtCodes].slice(0, 5).join(', ')}{unmatchedDebtCodes.length > 5 ? '...' : ''}]. Total unmatched: Unknown (no debt data available). Contact support to resolve missing debt records.</p>
             </div>
-          )}
+          )} */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <div className="card bg-white p-4 rounded-xl shadow-sm">
               <div className="flex items-center justify-between">

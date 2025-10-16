@@ -61,12 +61,13 @@ app.use('/api/sms', smsRoutes);
 app.use('/api/customers', customerRoutes);
 
 
-// Health check endpoint
 app.get('/health', (req, res) => {
+  const clientIp = req.ip || req.headers['x-forwarded-for']?.split(',')[0]?.trim() || 'unknown';
   res.status(200).json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    uptime: process.uptime(),
+    ip: clientIp // Add client IP to response
   });
 });
 

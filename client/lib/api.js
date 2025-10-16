@@ -1,24 +1,15 @@
 
 
-
-
-
-
-
-
 import axios from 'axios';
 import { auth } from './firebase';
 import { toast } from 'react-hot-toast';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
 
-// Create axios instance
+// Create axios instance without default Content-Type
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  timeout: 10000000,
 });
 
 // Request interceptor to add auth token
@@ -30,6 +21,8 @@ api.interceptors.request.use(
         const token = await user.getIdToken();
         config.headers.Authorization = `Bearer ${token}`;
       }
+      // Remove or do not set Content-Type here; let FormData handle it
+      delete config.headers['Content-Type']; // Ensure no override
     } catch (error) {
       console.error('Error getting auth token:', error);
     }
@@ -40,12 +33,11 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor for error handling
+// Response interceptor
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Token expired or invalid
       auth.signOut();
       window.location.href = '/login';
     }
@@ -55,6 +47,11 @@ api.interceptors.response.use(
 
 // API methods
 export const apiService = {
+  payments: {
+    getProcessorStatus: () => api.get('/api/payments/processor/status'),
+   generatePDF: (data) => api.post('/api/payments/generate-pdf', data, { responseType: 'blob' }),
+       checkDebt: (debtCode) => api.post('/api/payments/processor/check-debt', { debtCode }),
+  },
   // Debt management
   debts: {
     // Get all debts
@@ -112,14 +109,7 @@ export const apiService = {
     sendCustomMessage: (data) => api.post('/api/customers/send-message', data),
   },
 
-  // Payment management
-  payments: {
-    // Get processor status
-    getProcessorStatus: () => api.get('/api/payments/processor/status'),
-    
-    // Check specific debt
-    checkDebt: (debtCode) => api.post('/api/payments/processor/check-debt', { debtCode })
-  },
+ 
 
   // Test endpoints
   test: {

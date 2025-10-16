@@ -119,18 +119,18 @@ class SMSProcessor {
       }
     } catch (error) {
       console.error('Error processing SMS payment:', error);
-      await this.logPayment({
-        debtId: null,
-        amount: smsData.amount,
-        paymentMethod: 'mpesa_paybill',
-        reference: smsData.transactionId || `SMS_${Date.now()}`,
-        phoneNumber: smsData.phoneNumber,
-        accountNumber: smsData.accountNumber,
-        success: false,
-        error: error.message,
-        smsData,
-        createdAt: new Date(),
-      });
+      // await this.logPayment({
+      //   debtId: null,
+      //   amount: smsData.amount,
+      //   paymentMethod: 'mpesa_paybill',
+      //   reference: smsData.transactionId || `SMS_${Date.now()}`,
+      //   phoneNumber: smsData.phoneNumber,
+      //   accountNumber: smsData.accountNumber,
+      //   success: false,
+      //   error: error.message,
+      //   smsData,
+      //   createdAt: new Date(),
+      // });
       return { success: false, error: error.message };
     }
   }

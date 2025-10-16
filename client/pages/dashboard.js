@@ -33,8 +33,15 @@ export default function Dashboard() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const { user } = useAuth();
   const [isDisabled, setIsDisabled] = useState(false);
-
+  const [userData, setUserData] = useState(null);
   const router = useRouter();
+
+  // Set search term from URL query parameter
+  useEffect(() => {
+    if (router.query.accountNumber) {
+      setSearchTerm(decodeURIComponent(router.query.accountNumber));
+    }
+  }, [router.query.accountNumber]);
 
   // API Functions
   const fetchDebts = async () => {
@@ -63,18 +70,18 @@ export default function Dashboard() {
     }
   }, [user]);
 
-  useEffect(() => {
-    const handleRouteChange = () => {
-      if (user) {
-        fetchDebts();
-      }
-    };
+  // useEffect(() => {
+  //   const handleRouteChange = () => {
+  //     if (user) {
+  //       fetchDebts();
+  //     }
+  //   };
 
-    router.events.on('routeChangeComplete', handleRouteChange);
-    return () => {
-      router.events.off('routeChangeComplete', handleRouteChange);
-    };
-  }, [user, router.events]);
+  //   router.events.on('routeChangeComplete', handleRouteChange);
+  //   return () => {
+  //     router.events.off('routeChangeComplete', handleRouteChange);
+  //   };
+  // }, [user, router.events]);
 
   useEffect(() => {
     const checkUserStatus = async () => {
@@ -83,7 +90,9 @@ export default function Dashboard() {
           const userDocRef = doc(db, 'users', user.uid);
           const userDoc = await getDoc(userDocRef);
           if (userDoc.exists()) {
+            setUserData(userDoc.data());
             setIsDisabled(userDoc.data().disabled || false);
+            
           }
         } catch (error) {
           console.error('Error checking user status:', error);
@@ -154,13 +163,13 @@ export default function Dashboard() {
       : true;
 
     const bankOptions = ['Equity', 'Old KCB', 'New KCB', 'Old Absa', 'New Absa', 'Family'];
- const matchesMethod = methodFilter === 'all'
-  ? true
-  : methodFilter === 'mpesa_paybill' || methodFilter === 'manual_mpesa' || methodFilter === 'cash'
-    ? debt.paidPaymentMethod === methodFilter
-    : methodFilter === 'cheque'
-      ? debt.paymentMethod === methodFilter
-      : bankOptions.includes(methodFilter) && debt.bankDetails?.some(detail => detail.bankName === methodFilter);
+    const matchesMethod = methodFilter === 'all'
+      ? true
+      : methodFilter === 'mpesa_paybill' || methodFilter === 'manual_mpesa' || methodFilter === 'cash'
+        ? debt.paidPaymentMethod === methodFilter
+        : methodFilter === 'cheque'
+          ? debt.paymentMethod === methodFilter
+          : bankOptions.includes(methodFilter) && debt.bankDetails?.some(detail => detail.bankName === methodFilter);
 
     const matchesStatus = statusFilter === 'all'
       ? true
@@ -229,7 +238,9 @@ export default function Dashboard() {
                   <FileText className="h-4 w-4" />
                   <span>Reports</span>
                 </button>
-                <button
+                {userData?.role === 'admin' && (
+                  <>
+                   <button
                   data-tooltip-id="reports-tooltip"
                   onClick={handlePaymentsClick}
                   className="btn-secondary flex items-center space-x-2"
@@ -237,15 +248,19 @@ export default function Dashboard() {
                   <CreditCard className="h-4 w-4" />
                   <span>User Payments</span>
                 </button>
-               <button
-              onClick={handleManageCustomers}
-              className="btn-secondary flex items-center space-x-2"
-              data-tooltip-id="customers-tooltip"
-            >
-              <Users className="h-4 w-4" />
-              <span>Customers</span>
-            </button>
+                <button
+                  onClick={handleManageCustomers}
+                  className="btn-secondary flex items-center space-x-2"
+                  data-tooltip-id="customers-tooltip"
+                >
+                  <Users className="h-4 w-4" />
+                  <span>Customers</span>
+                </button>
                 
+                  </> 
+                  )
+                }
+               
                 <UserMenu 
                   user={user}
                   isDisabled={isDisabled}
@@ -259,7 +274,7 @@ export default function Dashboard() {
         </header>
 
         <main className="p-8">
-          <StatsGrid stats={stats} formatCurrency={formatCurrency} />
+          <StatsGrid stats={stats} formatCurrency={formatCurrency} userData={userData} />
           
           <Filters
             searchTerm={searchTerm}

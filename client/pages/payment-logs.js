@@ -512,7 +512,7 @@ fetchVehicles();
                   : new Date(selectedLog.processedAt.replace(' ', ' ')).toLocaleString()
                 ) || 'N/A'
                 : 'N/A'}</p>
-              <p><strong>Transaction Code:</strong> {selectedLog.transactionCode || selectedLog.transactionId || selectedLog.chequeNumber || selectedLog.paymentMethod}</p>
+              <p><strong>Transaction Code:</strong> {selectedLog.transactionCode || selectedLog.transactionId || selectedLog.chequeNumber || selectedLog.receiptNumber || 'N/A'}</p>
             </div>
             <div className="mt-6 flex justify-end space-x-4">
               <button

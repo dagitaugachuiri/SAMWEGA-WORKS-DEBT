@@ -440,7 +440,7 @@ fetchVehicles();
                         : new Date(log.transactionDate?.toDate()).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {log.transactionCode || log.transactionId || log.chequeNumber || log.paymentMethod}
+                      {log.transactionCode || log.transactionId || log.chequeNumber || log.receiptNumber || log.paymentMethod}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <span
@@ -512,7 +512,7 @@ fetchVehicles();
                   : new Date(selectedLog.processedAt.replace(' ', ' ')).toLocaleString()
                 ) || 'N/A'
                 : 'N/A'}</p>
-              <p><strong>Transaction Code:</strong> {selectedLog.transactionCode || selectedLog.transactionId || selectedLog.chequeNumber || selectedLog.receiptNumber || 'N/A'}</p>
+              <p><strong>Transaction Code:</strong> {selectedLog.transactionCode || selectedLog.transactionId || selectedLog.chequeNumber || selectedLog.paymentMethod}</p>
             </div>
             <div className="mt-6 flex justify-end space-x-4">
               <button

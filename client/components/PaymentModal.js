@@ -2,8 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 import { apiService } from '../lib/api';
 import { useAuth } from '../pages/_app';
-import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { doc, getDoc, setDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 export default function PaymentModal({ debt, onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
@@ -108,13 +108,101 @@ export default function PaymentModal({ debt, onClose, onSuccess }) {
     return errors;
   };
 
+ 
+    function parseTransactionCode(code) {
+      const match = code.match(/^(.+?)(?:\((\d+(?:\.\d+)?)\))?$/);
+      if (!match) return { baseCode: code.trim(), declaredTotal: null };
+      return {
+        baseCode: match[1].trim(),
+        declaredTotal: match[2] ? parseFloat(match[2]) : null,
+      };
+    }
+
+
+  async function checkAndRegisterTransactionCode(transactionCode, amount, debtId, userId) {
+    const { baseCode, declaredTotal } = parseTransactionCode(transactionCode);
+    const docRef = doc(db, 'manual-transactions', baseCode);
+    const docSnap = await getDoc(docRef);
+
+    // CASE 1: Code doesn’t exist yet → register it
+    if (!docSnap.exists()) {
+      const totalAmount = declaredTotal || amount;
+      await setDoc(docRef, {
+        transactionCode: baseCode,
+        totalAmount,
+        remainingAmount: totalAmount - amount,
+        usedAmounts: [
+          {
+            debtId,
+            usedBy: userId,
+            amount,
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        createdAt: serverTimestamp(),
+      });
+      return { valid: true };
+    }
+
+    // CASE 2: Code exists
+    const data = docSnap.data();
+
+    // If not a multi-debt transaction → reject re-use
+    if (!data.totalAmount || data.totalAmount === data.usedAmounts[0]?.amount) {
+      return { valid: false, error: 'This transaction code has already been used.' };
+    }
+
+    // Multi-debt case
+    if (data.remainingAmount < amount) {
+      return { valid: false, error: 'Insufficient remaining balance in this transaction code.' };
+    }
+
+    // Update remaining amount and add usage
+    await updateDoc(docRef, {
+      remainingAmount: data.remainingAmount - amount,
+      usedAmounts: [
+        ...data.usedAmounts,
+        {
+          debtId,
+          usedBy: userId,
+          amount,
+          timestamp: new Date().toISOString(),
+        },
+      ],
+    });
+
+    return { valid: true };
+  }
+
+
   const handleSubmit = async (e) => {
-    e.preventDefault();
+
+ e.preventDefault();
+
+    const formData = new FormData(formRef.current);
+  const transactionCode = formData.get('transactionCode')?.trim();
+
+    if (transactionCode) {
+      const txCheck = await checkAndRegisterTransactionCode(
+        transactionCode,
+        parseFloat(formData.get('amount')),
+        debt.id,
+        user.uid
+      );
+
+      if (!txCheck.valid) {
+        setError(txCheck.error);
+        setLoading(false);
+        return;
+      }
+    }
+
+
+
     setLoading(true);
     setError(null);
     setFormErrors({});
 
-    const formData = new FormData(formRef.current);
     
     console.log('FormData entries:');
     for (const [key, value] of formData.entries()) {

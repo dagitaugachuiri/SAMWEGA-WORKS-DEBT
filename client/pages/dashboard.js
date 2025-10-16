@@ -274,7 +274,7 @@ export default function Dashboard() {
         </header>
 
         <main className="p-8">
-          <StatsGrid stats={stats} formatCurrency={formatCurrency} />
+          <StatsGrid stats={stats} formatCurrency={formatCurrency} userData={userData} />
           
           <Filters
             searchTerm={searchTerm}

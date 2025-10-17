@@ -370,6 +370,8 @@ router.post('/:id/payment', authenticate, validate(schemas.payment), async (req,
       }
     } else if (paymentMethod === 'mpesa') {
       paymentLogData.transactionCode = transactionCode;
+    } else if (paymentMethod === 'cash') {
+      paymentLogData.receiptNumber = req.body.receiptNumber;
     }
 
     await addDoc(collection(db, 'payment_logs'), paymentLogData);

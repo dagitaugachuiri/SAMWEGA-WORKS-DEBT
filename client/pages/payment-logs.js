@@ -440,7 +440,7 @@ fetchVehicles();
                         : new Date(log.transactionDate?.toDate()).toLocaleDateString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {log.transactionCode || log.transactionId || log.chequeNumber || log.paymentMethod}
+                      {log.transactionCode || log.transactionId || log.chequeNumber || log.receiptNumber || log.paymentMethod}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <span

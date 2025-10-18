@@ -206,7 +206,8 @@ fetchVehicles();
       log.reference?.includes(searchTerm) ||
       log.phoneNumber?.includes(searchTerm) ||
       log.debtCode?.includes(searchTerm) ||
-      log.transactionCode?.includes(searchTerm);
+      log.transactionCode?.includes(searchTerm) ||
+      log.receiptNumber?.includes(searchTerm);
 
     const matchesUser = userFilter === 'all' ? true : log.createdBy === userFilter;
     const matchesVehicle = vehicleFilter === 'all' ? true : log.debtDetails?.vehiclePlate === vehicleFilter;

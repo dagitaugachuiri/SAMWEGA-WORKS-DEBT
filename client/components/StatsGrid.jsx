@@ -46,18 +46,19 @@ export default function StatsGrid({ stats, formatCurrency,userData }) {
       </div>
 
      {userData?.role==="admin" &&<div className="card" data-tooltip-id="total-paid-tooltip">
-
-        <div className="flex items-center">
-          <div className="p-2 bg-success-100 rounded-lg">
-            <CheckCircle className="h-6 w-6 text-success-600" />
-          </div>
-          <div className="ml-4">
-            <p className="text-sm font-medium text-gray-600">Total Paid Amount</p>
-            <p className="text-xl font-bold text-gray-900">
-              {formatCurrency(stats.totalPaid)}
-            </p>
-          </div>
-        </div>
+    <div className="group flex items-center">
+  <div className="p-2 bg-success-100 rounded-lg">
+    <CheckCircle className="h-6 w-6 text-success-600" />
+  </div>
+  <div className="ml-4">
+    <p className="text-sm font-medium text-gray-600 blur-lg group-hover:blur-none transition-all duration-200">
+      Total Paid Amount
+    </p>
+    <p className="text-xl font-bold text-gray-900 blur-lg group-hover:blur-none transition-all duration-200">
+      {formatCurrency(stats.totalPaid)}
+    </p>
+  </div>
+</div>
       </div>}
     </div>
   );

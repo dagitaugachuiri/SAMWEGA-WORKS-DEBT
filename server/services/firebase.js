@@ -21,8 +21,8 @@ const initializeFirebase = async () => {
       console.log('🎭 Running in DEMO MODE - Firebase disabled');
       return;
     }
-if(cashedServerUid){
-  return cashedServerUid
+if(cachedServerUid){
+  return cachedServerUid
 }
     // Validate environment variables
     if (!process.env.FIREBASE_SERVER_EMAIL) {
@@ -38,9 +38,9 @@ if(cashedServerUid){
       process.env.FIREBASE_SERVER_EMAIL,
       process.env.FIREBASE_SERVER_PASSWORD
     );
-    cashedServerUid= userCredential.user.uid;
+    cachedServerUid= userCredential.user.uid;
     console.log('✅ Firebase Client SDK initialized successfully, signed in as:', userCredential.user.email);
-    return  cashedServerUid; 
+    return  cachedServerUid; 
     
   } catch (error) {
     console.error('❌ Firebase initialization error:', error.message);

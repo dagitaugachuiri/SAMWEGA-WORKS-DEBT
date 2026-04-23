@@ -14,14 +14,16 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
-
+let cachedServerUid= null;
 const initializeFirebase = async () => {
   try {
     if (process.env.DEMO_MODE === 'true') {
       console.log('🎭 Running in DEMO MODE - Firebase disabled');
       return;
     }
-
+if(cashedServerUid){
+  return cashedServerUid
+}
     // Validate environment variables
     if (!process.env.FIREBASE_SERVER_EMAIL) {
       throw new Error('FIREBASE_SERVER_EMAIL is not set in .env');
@@ -36,8 +38,10 @@ const initializeFirebase = async () => {
       process.env.FIREBASE_SERVER_EMAIL,
       process.env.FIREBASE_SERVER_PASSWORD
     );
+    cashedServerUid= userCredential.user.uid;
     console.log('✅ Firebase Client SDK initialized successfully, signed in as:', userCredential.user.email);
-    return userCredential.user.uid; // Return server UID for use in auth.js
+    return  cashedServerUid; 
+    
   } catch (error) {
     console.error('❌ Firebase initialization error:', error.message);
     throw error;

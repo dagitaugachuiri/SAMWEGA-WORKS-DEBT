@@ -91,7 +91,7 @@ export default function Dashboard() {
           const userDoc = await getDoc(userDocRef);
           if (userDoc.exists()) {
             setUserData(userDoc.data());
-            setIsDisabled(userDoc.data().disabled || false);
+            setIsDisabled(false);
             
           }
         } catch (error) {

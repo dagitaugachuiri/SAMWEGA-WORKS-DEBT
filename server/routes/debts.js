@@ -223,6 +223,52 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
+// Batch fetch debts by IDs
+router.post('/batch', authenticate, async (req, res) => {
+  try {
+    const db = getFirestoreApp();
+    const userId = req.user.uid;
+    const { ids } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(200).json({ success: true, data: [] });
+    }
+
+    const uniqueIds = [...new Set(ids.filter(id => typeof id === 'string' && id.length > 0))];
+    const CHUNK_SIZE = 30;
+    const chunks = [];
+    for (let i = 0; i < uniqueIds.length; i += CHUNK_SIZE) {
+      chunks.push(uniqueIds.slice(i, i + CHUNK_SIZE));
+    }
+
+    let allDebts = [];
+    for (const chunk of chunks) {
+      const q = query(
+        collection(db, 'debts'),
+        where('userId', '==', userId),
+        where('__name__', 'in', chunk)
+      );
+      const snapshot = await getDocs(q);
+      const chunkDebts = snapshot.docs.map(docSnapshot => {
+        const data = docSnapshot.data();
+        return {
+          id: docSnapshot.id,
+          ...data,
+          createdAt: data.createdAt,
+          lastUpdatedAt: data.lastUpdatedAt,
+          lastPaymentDate: data.lastPaymentDate || null,
+        };
+      });
+      allDebts = allDebts.concat(chunkDebts);
+    }
+
+    res.json({ success: true, data: allDebts });
+  } catch (error) {
+    console.error('Batch fetch debts error:', error);
+    res.status(500).json({ success: false, error: 'Failed to retrieve debts in batch' });
+  }
+});
+
 // Get specific debt by ID
 router.get('/:id', authenticate, async (req, res) => {
   try {

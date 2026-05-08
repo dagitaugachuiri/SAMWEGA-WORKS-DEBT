@@ -54,13 +54,16 @@ class SMSService {
 
       const result = response.data;
       console.log('📋 TextSMS Response:', result);
-  return {
+      
+      if (result.responses && result.responses[0]) {
+        return {
           success: true,
           messageId: result.responses[0].messageid,
           data: result.responses[0]
         };
-      // Log attempt regardless of outcome
-  
+      }
+      
+      return { success: true, data: result };
 
     } catch (error) {
       console.error('❌ SMS Service Error:', {
@@ -90,7 +93,7 @@ class SMSService {
     }
   }
 
- generateInvoiceSMS(debt, phoneNumber) {
+  generateInvoiceSMS(debt, phoneNumber) {
     console.log('📝 Generating invoice SMS...');
     console.log(`   - Debt Code: ${debt.debtCode}`);
     console.log(`   - Original Amount: ${debt.amount}`);
@@ -121,7 +124,7 @@ class SMSService {
     console.log(`   - Message: ${message}`);
 
     return message;
-}
+  }
 
   generatePaymentConfirmationSMS(debt, paymentAmount) {
     console.log('💰 Generating payment confirmation SMS...');
@@ -141,54 +144,26 @@ class SMSService {
 
   async logSMS(smsData) {
     console.log('💾 Logging SMS to Firestore...');
-    console.log(`   - User ID: ${smsData.userId}`);
-    console.log(`   - Debt ID: ${smsData.debtId}`);
-    console.log(`   - To: ${smsData.to}`);
-    console.log(`   - Success: ${smsData.success}`);
-
     try {
       const smsLogsRef = collection(this.db, 'sms_logs');
-      const startTime = Date.now();
-      
-      const docRef = await addDoc(smsLogsRef, {
+      await addDoc(smsLogsRef, {
         ...smsData,
         createdAt: new Date()
       });
-      
-      const duration = Date.now() - startTime;
-      console.log(`✅ SMS Log created successfully in ${duration}ms`);
-      console.log(`   - Document ID: ${docRef.id}`);
+      console.log('✅ SMS Log created successfully');
     } catch (error) {
       console.error('❌ Error logging SMS to Firestore:', error.message);
-      console.error('❌ Full error details:', {
-        name: error.name,
-        message: error.message,
-        code: error.code
-      });
     }
   }
 
-  // Method for testing SMS functionality
   async sendTestSMS(phoneNumber) {
     console.log('🧪 Sending test SMS...');
-    console.log(`   - Phone number: ${phoneNumber}`);
-
     const testMessage = "Test message from Samwega Works Ltd debt management system. If you receive this, SMS is working correctly.";
-    console.log(`   - Test message: ${testMessage}`);
-
     const result = await this.sendSMS(phoneNumber, testMessage, 'test-user', 'test-debt');
-    
-    console.log('🧪 Test SMS result:');
-    console.log(`   - Success: ${result.success}`);
-    console.log(`   - Message ID: ${result.messageId || 'N/A'}`);
-    console.log(`   - Error: ${result.error || 'N/A'}`);
-
     return result;
   }
 
-  // Method to check message status (not supported by textsms API based on provided info)
   async getMessageStatus(messageId) {
-    console.warn('⚠️ Message status checking not supported by TextSMS API');
     return {
       success: false,
       error: 'Message status checking not supported by TextSMS API'

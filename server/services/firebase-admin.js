@@ -7,7 +7,7 @@ const projectId = process.env.FIREBASE_PROJECT_ID || 'samwega-9d990';
 let serviceAccountPath;
 
 if (projectId === 'samwega-9d990') {
-  serviceAccountPath = path.join(__dirname, '..', 'samwega-9d990-firebase-adminsdk-fbsvc-e3e6274bdf.json');
+  serviceAccountPath = path.join(__dirname, '..', 'samwega-9d990.json');
 } else if (projectId === 'samworks-dev') {
   serviceAccountPath = path.join(__dirname, '..', 'samworks-dev-firebase-adminsdk-fbsvc-2725461793.json');
 } else {

@@ -6,7 +6,7 @@ class SMSService {
   constructor() {
     console.log('🚀 Initializing SMS Service...');
     this.db = getFirestoreApp();
-    
+
     // TextSMS Configuration
     this.config = {
       apiKey: process.env.TEXTSMS_API_KEY,
@@ -14,12 +14,12 @@ class SMSService {
       shortcode: process.env.TEXTSMS_SENDER_ID,
       apiUrl: 'https://sms.textsms.co.ke/api/services/sendsms/'
     };
-    
+
     console.log('📋 SMS Service Configuration:');
     console.log(`   - API Key: ${this.config.apiKey ? '***CONFIGURED***' : 'NOT SET'}`);
     console.log(`   - Partner ID: ${this.config.partnerID || 'NOT SET'}`);
     console.log(`   - Sender ID: ${this.config.shortcode}`);
-    
+
     if (!this.config.apiKey || !this.config.partnerID) {
       console.warn('⚠️ TextSMS credentials not configured');
     }
@@ -33,9 +33,9 @@ class SMSService {
 
     try {
       // Format phone number (ensure it starts with '254' for Kenyan numbers)
-      const formattedPhone = to.startsWith('+254') ? to.replace('+254', '254') : 
-                           to.startsWith('0') ? '254' + to.substring(1) : to;
-      
+      const formattedPhone = to.startsWith('+254') ? to.replace('+254', '254') :
+        to.startsWith('0') ? '254' + to.substring(1) : to;
+
       // Format message (remove any special characters that might cause issues, ensure GSM7 compatibility)
       const formattedMessage = encodeURIComponent(message.trim());
 
@@ -54,7 +54,7 @@ class SMSService {
 
       const result = response.data;
       console.log('📋 TextSMS Response:', result);
-      
+
       if (result.responses && result.responses[0]) {
         return {
           success: true,
@@ -62,7 +62,7 @@ class SMSService {
           data: result.responses[0]
         };
       }
-      
+
       return { success: true, data: result };
 
     } catch (error) {
@@ -71,7 +71,7 @@ class SMSService {
         response: error.response?.data,
         status: error.response?.status
       });
-      
+
       await this.logSMS({
         userId,
         debtId,
@@ -94,19 +94,19 @@ class SMSService {
   }
 
   generateInvoiceSMS(debt, phoneNumber) {
-    console.log('🚀 DEBUG: [MAIN PROJECT] generateInvoiceSMS triggered');
+    console.log('🚀 DEBUG: [MAIN PROJECT]  triggered');
     console.log('📝 Generating invoice SMS...');
     console.log(`   - Debt Code: ${debt.debtCode}`);
     console.log(`   - Original Amount: ${debt.amount}`);
     console.log(`   - Remaining Amount: ${debt.remainingAmount}`);
     console.log(`   - Store Owner Name: ${debt.storeOwner.name}`);
     console.log(`   - Store Owner Phone Number: ${phoneNumber}`);
-    
+
     const { remainingAmount } = debt;
-    
+
     // Format phone number: replace +254 with 0 (used as M-Pesa account number)
     const formattedPhoneNumber = phoneNumber.replace(/^\+254/, '0');
-    
+
     // Use remaining amount, fallback to original amount
     const formattedAmount = new Intl.NumberFormat('en-KE', {
       style: 'decimal',
@@ -133,7 +133,7 @@ class SMSService {
     console.log(`   - Payment Amount: ${paymentAmount}`);
 
     const { debtCode } = debt;
-   
+
     const smsMessage = `Dear ${debt.storeOwner.name}, Payment of ${paymentAmount} received for debt #${debtCode}. balance ${debt.remainingAmount - paymentAmount} for inquiries call 0113689071 Thank you.`;
 
     console.log('✅ Payment confirmation SMS generated successfully');

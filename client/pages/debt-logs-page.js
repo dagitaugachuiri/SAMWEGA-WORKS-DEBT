@@ -3,10 +3,8 @@ import { useRouter } from 'next/router';
 import { toast } from 'react-hot-toast';
 import { CreditCard, Calendar, DollarSign, User, Cpu, AlertTriangle, Mail, Phone, User2, ArrowLeft, Store, Truck, MapPin, Edit, Trash2, FileText, Banknote } from 'lucide-react';
 import { Tooltip } from 'react-tooltip';
-import { getFirestore, collection, getDocs, doc, getDoc, updateDoc, deleteDoc, arrayRemove } from 'firebase/firestore';
-import { auth, app } from '../lib/firebase';
-
-const db = getFirestore(app);
+import { apiService } from '../lib/api';
+import { auth } from '../lib/firebase';
 
 export default function DebtLogsPage() {
   const [paymentLogs, setPaymentLogs] = useState([]);
@@ -31,17 +29,15 @@ export default function DebtLogsPage() {
     const checkUserRole = async () => {
       if (auth.currentUser) {
         try {
-          const userDocRef = doc(db, 'users', auth.currentUser.uid);
-          const userDoc = await getDoc(userDocRef);
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
+          const response = await apiService.users.getMe();
+          if (response.data.success) {
+            const userData = response.data.data;
             setIsAdmin(userData.role === 'admin');
           } else {
             setIsAdmin(false);
           }
         } catch (error) {
           console.error('Error checking user role:', error);
-          toast.error('Failed to verify user role');
           setIsAdmin(false);
         }
       } else {
@@ -54,10 +50,9 @@ export default function DebtLogsPage() {
 
   const fetchDebtAndCustomer = async (debtId) => {
     try {
-      const debtRef = doc(db, 'debts', debtId);
-      const debtSnap = await getDoc(debtRef);
-      if (debtSnap.exists()) {
-        const debtData = debtSnap.data();
+      const response = await apiService.debts.getById(debtId);
+      if (response.data.success) {
+        const debtData = response.data.data;
         console.log('Fetched debt data:', debtData);
         
         setCreatedBy(debtData.createdBy || 'Unknown');
@@ -82,18 +77,16 @@ export default function DebtLogsPage() {
           storeOwnerName: debtData.storeOwner?.name || '',
           storeOwnerEmail: debtData.storeOwner?.email || '',
           storeLocation: debtData.store?.location || '',
-          dueDate: debtData.dueDate ? new Date(debtData.dueDate.toDate()).toISOString().split('T')[0] : '',
+          dueDate: debtData.dueDate 
+            ? (debtData.dueDate.seconds 
+                ? new Date(debtData.dueDate.seconds * 1000).toISOString().split('T')[0] 
+                : new Date(debtData.dueDate).toISOString().split('T')[0]) 
+            : '',
         });
-      } else {
-        toast.error('Debt not found');
-        setCreatedBy('Unknown');
-        setCustomer(null);
-        setDebtDetails(null);
       }
     } catch (error) {
       console.error('Error fetching debt:', error);
-      toast.error(error.message || 'Failed to fetch debt details');
-      setCreatedBy('Unknown');
+      toast.error('Failed to fetch debt details');
       setCustomer(null);
       setDebtDetails(null);
     }
@@ -102,17 +95,14 @@ export default function DebtLogsPage() {
   const fetchPaymentLogs = async (debtId) => {
     try {
       setLoading(true);
-      const paymentLogsRef = collection(db, 'payment_logs');
-      const snapshot = await getDocs(paymentLogsRef);
-      const allLogs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      const filteredLogs = allLogs.filter(log => log.debtId === debtId);
-      setPaymentLogs(filteredLogs);
+      const response = await apiService.payments.getAllLogs();
+      if (response.data.success) {
+        const filteredLogs = response.data.data.filter(log => log.debtId === debtId);
+        setPaymentLogs(filteredLogs);
+      }
     } catch (error) {
       console.error('Error fetching payment logs:', error);
-      toast.error(error.message || 'Failed to fetch payment logs');
+      toast.error('Failed to fetch payment logs');
     } finally {
       setLoading(false);
     }
@@ -124,8 +114,7 @@ export default function DebtLogsPage() {
       return;
     }
     try {
-      const debtRef = doc(db, 'debts', debtId);
-      await updateDoc(debtRef, {
+      const updateData = {
         store: {
           name: editForm.storeName,
           location: editForm.storeLocation,
@@ -136,63 +125,38 @@ export default function DebtLogsPage() {
           phoneNumber: customer?.phone || '',
         },
         dueDate: editForm.dueDate ? new Date(editForm.dueDate) : null,
-      });
-      toast.success('Debt updated successfully!');
-      setShowEditModal(false);
-      await fetchDebtAndCustomer(debtId);
+      };
+      
+      const response = await apiService.debts.update(debtId, updateData);
+      if (response.data.success) {
+        toast.success('Debt updated successfully!');
+        setShowEditModal(false);
+        await fetchDebtAndCustomer(debtId);
+      }
     } catch (error) {
       console.error('Error updating debt:', error);
-      toast.error(error.message || 'Failed to update debt');
+      toast.error('Failed to update debt');
     }
   };
 
 
-const handleDeleteDebt = async () => {
-  if (!isAdmin) {
-    toast.error('Only admins can delete debts');
-    return;
-  }
-  try {
-    // Reference to the debt document
-    const debtRef = doc(db, 'debts', debtId);
-    
-    // Fetch the debt document to get the debtCode and customer phone number
-    const debtSnap = await getDoc(debtRef);
-    if (!debtSnap.exists()) {
-      toast.error('Debt not found');
+  const handleDeleteDebt = async () => {
+    if (!isAdmin) {
+      toast.error('Only admins can delete debts');
       return;
     }
-    
-    const debtData = debtSnap.data();
-    const debtCode = debtData.debtCode; // Use debtCode from debt document
-    const customerPhoneNumber = debtData.storeOwner?.phoneNumber;
-
-    if (!debtCode) {
-      throw new Error('Debt code not found in debt document');
+    try {
+      const response = await apiService.debts.delete(debtId);
+      if (response.data.success) {
+        toast.success('Debt deleted successfully!');
+        setShowDeleteModal(false);
+        router.push('/dashboard');
+      }
+    } catch (error) {
+      console.error('Error deleting debt:', error);
+      toast.error('Failed to delete debt');
     }
-
-    // Delete the debt document
-    await deleteDoc(debtRef);
-
-    // Update the customer document by removing the debtCode from debtIds array
-    if (customerPhoneNumber) {
-      const customerRef = doc(db, 'customers', customerPhoneNumber);
-      await updateDoc(customerRef, {
-        debtIds: arrayRemove(debtCode),
-        lastUpdatedAt: new Date() // Update the lastUpdatedAt timestamp
-      });
-    } else {
-      console.warn('No customer phone number found in debt document');
-    }
-
-    toast.success('Debt deleted successfully!');
-    setShowDeleteModal(false);
-    router.push('/dashboard');
-  } catch (error) {
-    console.error('Error deleting debt or updating customer:', error);
-    toast.error(error.message || 'Failed to delete debt or update customer');
-  }
-};
+  };
 
   const handleViewLocation = () => {
     if (!isAdmin) {

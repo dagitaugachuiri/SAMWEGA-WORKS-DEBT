@@ -13,8 +13,7 @@ import {
 } from 'lucide-react';
 import { Tooltip } from 'react-tooltip';
 import Layout from '../components/Layout';
-import { doc, getDoc, collection, addDoc, getDocs, updateDoc, query, where } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { apiService } from '../lib/api';
 
 export default function ManageSupplierDebts() {
   const [supplierDebts, setSupplierDebts] = useState([]);
@@ -37,15 +36,13 @@ export default function ManageSupplierDebts() {
     const checkUserStatus = async () => {
       if (user?.uid) {
         try {
-          const userDocRef = doc(db, 'users', user.uid);
-          const userDoc = await getDoc(userDocRef);
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
+          const response = await apiService.users.getMe();
+          if (response.data.success) {
+            const userData = response.data.data;
             setIsDisabled(userData.disabled || false);
           }
         } catch (error) {
           console.error('Error checking user status:', error);
-          toast.error('Failed to verify user status');
         }
       }
     };
@@ -56,19 +53,10 @@ export default function ManageSupplierDebts() {
   const fetchSupplierDebts = async () => {
     try {
       setLoading(true);
-      const debtsCollection = collection(db, 'supplierDebts');
-      let debtsQuery = debtsCollection;
-      
-      if (statusFilter !== 'all') {
-        debtsQuery = query(debtsCollection, where('status', '==', statusFilter));
+      const response = await apiService.supplierDebts.getAll({ status: statusFilter });
+      if (response.data.success) {
+        setSupplierDebts(response.data.data);
       }
-
-      const querySnapshot = await getDocs(debtsQuery);
-      const debtsData = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-      setSupplierDebts(debtsData);
     } catch (error) {
       console.error('Error fetching supplier debts:', error);
       toast.error('Failed to load supplier debts');
@@ -97,20 +85,13 @@ export default function ManageSupplierDebts() {
       return;
     }
     try {
-      const debtsCollection = collection(db, 'supplierDebts');
-      await addDoc(debtsCollection, {
-        supplierName: newDebt.supplierName,
-        amount: parseFloat(newDebt.amount),
-        description: newDebt.description,
-        dueDate: { seconds: new Date(newDebt.dueDate).getTime() / 1000 },
-        status: 'pending',
-        createdAt: { seconds: Math.floor(Date.now() / 1000) },
-        lastUpdatedAt: { seconds: Math.floor(Date.now() / 1000) },
-      });
-      toast.success('Supplier debt created successfully!');
-      setNewDebt({ supplierName: '', amount: '', description: '', dueDate: '' });
-      setShowCreateForm(false);
-      fetchSupplierDebts();
+      const response = await apiService.supplierDebts.create(newDebt);
+      if (response.data.success) {
+        toast.success('Supplier debt created successfully!');
+        setNewDebt({ supplierName: '', amount: '', description: '', dueDate: '' });
+        setShowCreateForm(false);
+        fetchSupplierDebts();
+      }
     } catch (error) {
       console.error('Error creating supplier debt:', error);
       toast.error('Failed to create supplier debt');
@@ -124,13 +105,11 @@ export default function ManageSupplierDebts() {
       return;
     }
     try {
-      const debtDocRef = doc(db, 'supplierDebts', debtId);
-      await updateDoc(debtDocRef, {
-        status: 'paid',
-        lastUpdatedAt: { seconds: Math.floor(Date.now() / 1000) },
-      });
-      toast.success('Supplier debt marked as paid!');
-      fetchSupplierDebts();
+      const response = await apiService.supplierDebts.markAsPaid(debtId);
+      if (response.data.success) {
+        toast.success('Supplier debt marked as paid!');
+        fetchSupplierDebts();
+      }
     } catch (error) {
       console.error('Error marking debt as paid:', error);
       toast.error('Failed to mark debt as paid');

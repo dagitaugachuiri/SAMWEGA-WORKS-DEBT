@@ -5,6 +5,7 @@ const { authenticate } = require('../middleware/auth');
 const { validate, schemas } = require('../middleware/validation');
 const smsService = require('../services/sms');
 
+const axios = require('axios');
 const router = express.Router();
 
 // Generate unique debt code
@@ -67,7 +68,7 @@ router.post('/', authenticate, validate(schemas.debt), async (req, res) => {
     const debtId = debtRef.id;
     console.log('Debt created with ID:', debtId);
 
-      // Create or update customer record if storeOwner and store are provided
+    // Create or update customer record if storeOwner and store are provided
     let customerData = null;
     if (req.body.storeOwner && normalizedPhoneNumber && req.body.store) {
       const { name } = req.body.storeOwner;
@@ -111,7 +112,7 @@ router.post('/', authenticate, validate(schemas.debt), async (req, res) => {
     // Send SMS notification if storeOwner phoneNumber is available
     let smsResult = { data: null };
     if (normalizedPhoneNumber) {
-      const smsMessage = smsService.generateInvoiceSMS(debtData,normalizedPhoneNumber);
+      const smsMessage = smsService.generateInvoiceSMS(debtData, normalizedPhoneNumber);
       console.log('SMS message:', smsMessage);
       smsResult = await smsService.sendSMS(
         normalizedPhoneNumber,
@@ -148,8 +149,24 @@ router.get('/', authenticate, async (req, res) => {
     // Get current timestamp in seconds for overdue comparison
     const currentTimestamp = Math.floor(Date.now() / 1000);
 
-    // Base query for user's debts
-    let q = query(collection(db, 'debts'), where('userId', '==', userId));
+    // Fetch user role from Firestore to check for admin status
+    const userDocRef = doc(db, 'users', userId);
+    const userDocSnap = await getDoc(userDocRef);
+    const userRole = userDocSnap.exists() ? userDocSnap.data().role : 'user';
+    const isAdmin = userRole === 'admin';
+
+    console.log(`User ${userId} (role: ${userRole}) fetching debts. IsAdmin: ${isAdmin}`);
+
+    // Base query for debts
+    // If admin, we can fetch all debts. If not, only fetch user's own debts.
+    let q;
+    if (isAdmin) {
+      console.log('Admin detected, fetching all debts from collection');
+      q = query(collection(db, 'debts'));
+    } else {
+      console.log(`Regular user detected, filtering debts by userId: ${userId}`);
+      q = query(collection(db, 'debts'), where('userId', '==', userId));
+    }
 
     // Apply status filter if provided (excluding overdue)
     if (status && ['pending', 'paid', 'partially_paid'].includes(status)) {
@@ -165,7 +182,9 @@ router.get('/', authenticate, async (req, res) => {
     q = query(q, limit(limitNum));
 
     if (offsetNum > 0) {
-      const offsetQuery = query(collection(db, 'debts'), where('userId', '==', userId), orderBy(sortBy, sortOrder));
+      const offsetQuery = isAdmin
+        ? query(collection(db, 'debts'), orderBy(sortBy, sortOrder))
+        : query(collection(db, 'debts'), where('userId', '==', userId), orderBy(sortBy, sortOrder));
       const offsetSnapshot = await getDocs(offsetQuery);
       const lastVisible = offsetSnapshot.docs[offsetNum - 1];
       if (lastVisible) {
@@ -174,7 +193,17 @@ router.get('/', authenticate, async (req, res) => {
     }
 
     // Fetch debts
+    console.log('Executing Firestore query...');
     const snapshot = await getDocs(q);
+    console.log(`Query execution complete. Found ${snapshot.size} documents in Firestore.`);
+
+    if (snapshot.empty && !isAdmin) {
+      console.log('Checking if any debts exist at all for this user in the whole collection...');
+      const checkAll = await getDocs(collection(db, 'debts'));
+      const sample = checkAll.docs.slice(0, 3).map(d => ({ id: d.id, userId: d.data().userId }));
+      console.log('Sample of all debts in collection (first 3):', sample);
+    }
+
     const debts = snapshot.docs.map(doc => {
       const data = doc.data();
       const isOverdue = data.dueDate && data.dueDate.seconds && data.dueDate.seconds < currentTimestamp && (data.remainingAmount || 0) > 0;
@@ -192,7 +221,9 @@ router.get('/', authenticate, async (req, res) => {
     const filteredDebts = status === 'overdue' ? debts.filter(debt => debt.status === 'overdue') : debts;
 
     // Get total count for pagination info
-    const totalQuery = query(collection(db, 'debts'), where('userId', '==', userId));
+    const totalQuery = isAdmin
+      ? query(collection(db, 'debts'))
+      : query(collection(db, 'debts'), where('userId', '==', userId));
     const totalSnapshot = await getDocs(totalQuery);
     let total;
     if (status === 'overdue') {
@@ -223,6 +254,52 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
+// Batch fetch debts by IDs
+router.post('/batch', authenticate, async (req, res) => {
+  try {
+    const db = getFirestoreApp();
+    const userId = req.user.uid;
+    const { ids } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(200).json({ success: true, data: [] });
+    }
+
+    const uniqueIds = [...new Set(ids.filter(id => typeof id === 'string' && id.length > 0))];
+    const CHUNK_SIZE = 30;
+    const chunks = [];
+    for (let i = 0; i < uniqueIds.length; i += CHUNK_SIZE) {
+      chunks.push(uniqueIds.slice(i, i + CHUNK_SIZE));
+    }
+
+    let allDebts = [];
+    for (const chunk of chunks) {
+      const q = query(
+        collection(db, 'debts'),
+        where('userId', '==', userId),
+        where('__name__', 'in', chunk)
+      );
+      const snapshot = await getDocs(q);
+      const chunkDebts = snapshot.docs.map(docSnapshot => {
+        const data = docSnapshot.data();
+        return {
+          id: docSnapshot.id,
+          ...data,
+          createdAt: data.createdAt,
+          lastUpdatedAt: data.lastUpdatedAt,
+          lastPaymentDate: data.lastPaymentDate || null,
+        };
+      });
+      allDebts = allDebts.concat(chunkDebts);
+    }
+
+    res.json({ success: true, data: allDebts });
+  } catch (error) {
+    console.error('Batch fetch debts error:', error);
+    res.status(500).json({ success: false, error: 'Failed to retrieve debts in batch' });
+  }
+});
+
 // Get specific debt by ID
 router.get('/:id', authenticate, async (req, res) => {
   try {
@@ -241,8 +318,9 @@ router.get('/:id', authenticate, async (req, res) => {
     }
 
     const debt = docSnap.data();
+    const isAdmin = req.user.role === 'admin' || req.user.admin === true;
 
-    if (debt.userId !== userId) {
+    if (debt.userId !== userId && !isAdmin) {
       return res.status(403).json({
         success: false,
         error: 'Access denied',
@@ -289,7 +367,8 @@ router.post('/:id/payment', authenticate, validate(schemas.payment), async (req,
 
     const debt = debtSnapshot.data();
 
-    if (debt.userId !== userId) {
+    const isAdmin = req.user.role === 'admin' || req.user.admin === true;
+    if (debt.userId !== userId && !isAdmin) {
       return res.status(403).json({
         success: false,
         error: 'Access denied',
@@ -408,6 +487,29 @@ router.post('/:id/payment', authenticate, validate(schemas.payment), async (req,
       },
       sms: smsResult.data,
     });
+
+    // Webhook update to inventory backend
+    try {
+      const inventoryBackendUrl = process.env.INVENTORY_BACKEND_URL || 'http://localhost:8080';
+      const webhookPayload = {
+        debtCode: debt.debtCode,
+        status: newStatus,
+        paidAmount: amount,
+        paymentMethod: paymentMethod,
+        paymentDate: paymentDate || new Date(),
+        ...(paymentMethod === 'bank' && bankDetails?.bankName ? { bankName: bankDetails.bankName } : {}),
+        ...(paymentMethod === 'cheque' && bankName ? { bankName } : {})
+      };
+      console.log(`🔗 Sending webhook update to inventory backend: ${inventoryBackendUrl}`);
+      console.log('📦 Webhook payload:', JSON.stringify(webhookPayload, null, 2));
+
+      await axios.post(`${inventoryBackendUrl}/api/v1/sales/webhook/debt-update`, webhookPayload);
+
+      console.log('✅ Webhook update successful');
+    } catch (webhookError) {
+      console.error('❌ Webhook update failed:', webhookError.message);
+      // Non-blocking error, we already returned success to the client
+    }
   } catch (error) {
     console.error('Process payment error:', error);
     res.status(500).json({
@@ -432,8 +534,9 @@ router.post('/:debtId/manual-request', authenticate, async (req, res) => {
     }
 
     const debt = debtDoc.data();
+    const isAdmin = req.user.role === 'admin' || req.user.admin === true;
 
-    if (debt.userId !== userId) {
+    if (debt.userId !== userId && !isAdmin) {
       return res.status(403).json({ success: false, error: 'Access denied' });
     }
 
@@ -447,7 +550,7 @@ router.post('/:debtId/manual-request', authenticate, async (req, res) => {
 
     const smsMessage = `Manual payment requested for debt #${debt.debtCode}. Store: ${debt.store.name}, Owner: ${debt.storeOwner.name}, Amount: KES ${debt.amount}, Due: ${new Date(debt.dueDate).toLocaleDateString('en-GB')}. Please approve.`;
     await smsService.sendSMS('+254715046894', smsMessage, userId, debtId);
-  
+
     await updateDoc(debtRef, { manualPaymentRequested: true });
 
     res.json({ success: true, data: { manualPaymentRequested: true } });
@@ -484,7 +587,8 @@ router.patch('/:id/status', authenticate, async (req, res) => {
 
     const debt = debtSnapshot.data();
 
-    if (debt.userId !== userId) {
+    const isAdmin = req.user.role === 'admin' || req.user.admin === true;
+    if (debt.userId !== userId && !isAdmin) {
       return res.status(403).json({
         success: false,
         error: 'Access denied',
@@ -507,12 +611,68 @@ router.patch('/:id/status', authenticate, async (req, res) => {
         lastUpdatedAt: new Date(),
       },
     });
+
+    // Webhook update to inventory backend
+    try {
+      const inventoryBackendUrl = process.env.INVENTORY_BACKEND_URL || 'http://localhost:8080';
+      console.log(`🔗 Sending status webhook update to inventory backend: ${inventoryBackendUrl}`);
+
+      await axios.post(`${inventoryBackendUrl}/api/v1/sales/webhook/debt-update`, {
+        debtCode: debt.debtCode,
+        status: status,
+        paidAmount: 0, // No payment in status update
+        paymentDate: new Date()
+      });
+
+      console.log('✅ Status webhook update successful');
+    } catch (webhookError) {
+      console.error('❌ Status webhook update failed:', webhookError.message);
+    }
   } catch (error) {
     console.error('Update debt status error:', error);
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to update debt status',
     });
+  }
+});
+
+// Update debt details
+router.patch('/:id', authenticate, async (req, res) => {
+  try {
+    const db = getFirestoreApp();
+    const { id } = req.params;
+    const userId = req.user.uid;
+    const updateData = { ...req.body, lastUpdatedAt: new Date() };
+
+    // Remove immutable fields if present
+    delete updateData.id;
+    delete updateData.debtCode;
+    delete updateData.createdAt;
+
+    const debtDoc = doc(db, 'debts', id);
+    const debtSnapshot = await getDoc(debtDoc);
+
+    if (!debtSnapshot.exists()) {
+      return res.status(404).json({ success: false, error: 'Debt not found' });
+    }
+
+    const debt = debtSnapshot.data();
+    const isAdmin = req.user.role === 'admin' || req.user.admin === true;
+
+    if (debt.userId !== userId && !isAdmin) {
+      return res.status(403).json({ success: false, error: 'Access denied' });
+    }
+
+    await updateDoc(debtDoc, updateData);
+
+    res.json({
+      success: true,
+      data: { id, ...debt, ...updateData }
+    });
+  } catch (error) {
+    console.error('Update debt error:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -535,7 +695,8 @@ router.delete('/:id', authenticate, async (req, res) => {
 
     const debt = debtSnapshot.data();
 
-    if (debt.userId !== userId) {
+    const isAdmin = req.user.role === 'admin' || req.user.admin === true;
+    if (debt.userId !== userId && !isAdmin) {
       return res.status(403).json({
         success: false,
         error: 'Access denied',
@@ -586,16 +747,17 @@ router.post('/:id/resend-invoice-sms', authenticate, async (req, res) => {
       });
     }
 
-    const debt = { 
-      id: debtSnapshot.id, 
+    const debt = {
+      id: debtSnapshot.id,
       ...debtSnapshot.data(),
       // Ensure remainingAmount is properly set
-      remainingAmount: debtSnapshot.data().remainingAmount || 
-                      (debtSnapshot.data().amount - (debtSnapshot.data().paidAmount || 0))
+      remainingAmount: debtSnapshot.data().remainingAmount ||
+        (debtSnapshot.data().amount - (debtSnapshot.data().paidAmount || 0))
     };
 
     // Check ownership
-    if (debt.userId !== userId) {
+    const isAdmin = req.user.role === 'admin' || req.user.admin === true;
+    if (debt.userId !== userId && !isAdmin) {
       return res.status(403).json({
         success: false,
         error: 'Access denied'

@@ -17,6 +17,9 @@ const testRoutes = require('./routes/test');
 const paymentRoutes = require('./routes/payments');
 const smsRoutes = require('./routes/sms');
 const customerRoutes = require('./routes/customers');
+const userRoutes = require('./routes/users');
+const configRoutes = require('./routes/config');
+const supplierDebtRoutes = require('./routes/supplier-debts');
 const { errorHandler } = require('./middleware/errorHandler');
 const smsService = require('./services/sms');
 
@@ -26,28 +29,37 @@ const PORT = process.env.PORT || 5000;
 // Initialize Firebase Admin SDK
 initializeFirebase();
 
-// Enable trust proxy - add this BEFORE other middleware
+// CORS configuration - move to top
+app.use(cors({
+  origin: true, 
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  optionsSuccessStatus: 200
+}));
+
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`📡 ${req.method} ${req.url} from ${req.headers.origin || 'no origin'}`);
+  next();
+});
+
+// Enable trust proxy
 app.set('trust proxy', 1);
 
-// Security middleware
-app.use(helmet());
+// Security middleware - temporarily commented out to debug CORS
+// app.use(helmet());
 app.use(compression());
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 5000, // Increased for development
   standardHeaders: true,
   legacyHeaders: false,
   message: 'Too many requests from this IP, please try again later.'
 });
 app.use('/api/', limiter);
-  
-// CORS configuration 
-app.use(cors({
-  origin: true, // Allows all origins
-  credentials: true // Allows credentials (cookies, authorization headers, etc.)
-}));
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
@@ -59,6 +71,9 @@ app.use('/api/test', testRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/sms', smsRoutes);
 app.use('/api/customers', customerRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/config', configRoutes);
+app.use('/api/supplier-debts', supplierDebtRoutes);
 
 
 app.get('/health', (req, res) => {
@@ -81,7 +96,9 @@ app.get('/', (req, res) => {
       debts: '/api/debts',
       payments: '/api/payments',
       test: '/api/test',
-      sms: '/api/sms'
+      sms: '/api/sms',
+      users: '/api/users',
+      config: '/api/config'
     }
   });
 });

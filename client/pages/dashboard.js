@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { signOut } from 'firebase/auth';
-import { auth, db } from '../lib/firebase';
+import { auth } from '../lib/firebase';
 import { useAuth } from './_app';
 import { apiService } from '../lib/api';
 import { toast } from 'react-hot-toast';
@@ -15,7 +15,6 @@ import DebtDetailModal from '../components/DebtDetailModal';
 import PaymentModal from '../components/PaymentModal';
 import TestModal from '../components/TestModal';
 import UserMenu from '../components/UserMenu';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 export default function Dashboard() {
   // State
@@ -49,11 +48,13 @@ export default function Dashboard() {
       console.log('Fetching all debts');
       setLoading(true);
       const response = await apiService.debts.getAll({ limit: 10000 });
-      await updateDoc(doc(db, 'users', user.uid), { disabled: true });
-      await updateDoc(doc(db, 'users', user.uid), { role: "user" });
+      console.log('Debts API Response:', response.data);
+      
       if (response.data.success) {
         setDebts(response.data.data);
+        console.log(`Successfully loaded ${response.data.data.length} debts.`);
       } else {
+        console.error('API reported failure:', response.data.error);
         toast.error('Failed to load debts');
       }
     } catch (error) {
@@ -66,7 +67,6 @@ export default function Dashboard() {
 
   // Effects
   useEffect(() => {
-    
     if (user) {
       fetchDebts();
     }
@@ -89,12 +89,10 @@ export default function Dashboard() {
     const checkUserStatus = async () => {
       if (user?.uid) {
         try {
-          const userDocRef = doc(db, 'users', user.uid);
-          const userDoc = await getDoc(userDocRef);
-          if (userDoc.exists()) {
-            setUserData(userDoc.data());
-            // setIsDisabled(userDoc.data().disabled || false);
-            
+          const response = await apiService.users.getMe();
+          if (response.data.success) {
+            setUserData(response.data.data);
+            setIsDisabled(false);
           }
         } catch (error) {
           console.error('Error checking user status:', error);

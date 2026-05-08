@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { auth } from '../lib/firebase';
 import { useAuth } from './_app';
+import { apiService } from '../lib/api';
 import { toast } from 'react-hot-toast';
 import { Eye, EyeOff, LogIn, Shield } from 'lucide-react';
 
@@ -26,43 +26,49 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // Query Firestore for user by email (case-insensitive)
-      const usersCollection = collection(db, 'users');
-      const qEmail = query(
-        usersCollection,
-        where('email', '==', identifier.toLowerCase())
-      );
-      const emailSnapshot = await getDocs(qEmail);
-
-      let userDoc = null;
-      if (!emailSnapshot.empty) {
-        userDoc = emailSnapshot.docs[0];
-      } else {
-        // Fetch all users for case-insensitive name matching
-        const allUsersSnapshot = await getDocs(usersCollection);
-        userDoc = allUsersSnapshot.docs.find(
-          (doc) => doc.data().name.toLowerCase() === identifier.toLowerCase()
-        );
+      // 0. Resolve email if identifier is a name
+      let email = identifier;
+      try {
+        const resolveRes = await apiService.users.resolveEmail(identifier);
+        if (resolveRes.data.success) {
+          email = resolveRes.data.email;
+        }
+      } catch (err) {
+        console.warn('Could not resolve email from identifier, trying as email directly');
       }
 
-      if (!userDoc) {
+      // 1. Authenticate with Firebase
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      
+      console.log('Firebase Auth successful for:', user.email);
+
+      // 2. Check user status via Server API
+      const response = await apiService.users.getMe();
+      
+      if (!response.data.success) {
+        await signOut(auth);
         throw new Error('auth/user-not-found');
       }
 
-      const userData = userDoc.data();
+      const userData = response.data.data;
+      console.log('User status from API:', { id: userData.id, disabled: userData.disabled });
+
       if (userData.disabled) {
+        console.warn('Login blocked: User account is marked as disabled in Firestore.');
+        await signOut(auth);
         throw new Error('auth/user-disabled');
       }
 
-      // Use the email from Firestore for authentication
-      const email = userData.email;
-      await signInWithEmailAndPassword(auth, email, password);
-      console.log('Login successful for:', email,password);
-      
       toast.success('Successfully logged in!');
       router.push('/dashboard');
     } catch (error) {
-      console.error('Login error:', error);
+      console.error('Detailed Login Error:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack,
+        fullError: error
+      });
       let errorMessage = 'Login failed. Please check your credentials.';
       
       if (error.message === 'auth/user-not-found' || error.code === 'auth/user-not-found') {

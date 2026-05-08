@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useAuth } from './_app';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { apiService } from '../lib/api';
 import { toast } from 'react-hot-toast';
 import { ArrowLeft, CreditCard, Calendar, DollarSign, FileText, User, Store, MapPin, MessageSquare, Send, Phone } from 'lucide-react';
 import { Tooltip } from 'react-tooltip';
@@ -73,10 +72,9 @@ export default function CustomerDebts() {
     const checkUserStatus = async () => {
       if (user?.uid) {
         try {
-          const userDocRef = doc(db, 'users', user.uid);
-          const userDoc = await getDoc(userDocRef);
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
+          const response = await apiService.users.getMe();
+          if (response.data.success) {
+            const userData = response.data.data;
             setIsDisabled(userData.disabled || false);
           }
         } catch (error) {

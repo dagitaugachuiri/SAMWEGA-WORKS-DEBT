@@ -1,15 +1,13 @@
 import { useEffect, useState, createContext, useContext } from 'react';
 import { useRouter } from 'next/router';
 import { onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { Toaster } from 'react-hot-toast';
-import { auth, app } from '../lib/firebase';
+import { auth } from '../lib/firebase';
+import { apiService } from '../lib/api';
 import '../styles/globals.css';
 
 const AuthContext = createContext({});
 export const useAuth = () => useContext(AuthContext);
-
-const db = getFirestore(app);
 
 function MyApp({ Component, pageProps }) {
   const [user, setUser] = useState(null);
@@ -18,7 +16,7 @@ function MyApp({ Component, pageProps }) {
   const [userRole, setUserRole] = useState(null);
   const [timeReached, setTimeReached] = useState(false);
   const [deviceAllowed, setDeviceAllowed] = useState(true);
-  const [allowedFingerprints, setAllowedFingerprints] = useState(["366eee0c1b8e32dbd4d88350124b4b232f5eb6df26c7e3725104e4b9b8a4216c"]);
+  const [allowedFingerprints, setAllowedFingerprints] = useState([]);
   const [shiftTimes, setShiftTimes] = useState({
     timeoutHour: 12,
     timeoutMinute: 40,
@@ -35,8 +33,8 @@ function MyApp({ Component, pageProps }) {
       setUser(user);
       if (user) {
         try {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          setUserRole(userDoc.exists() ? userDoc.data().role || 'user' : 'user');
+          const response = await apiService.users.getMe();
+          setUserRole(response.data.success ? response.data.data.role || 'user' : 'user');
         } catch (err) {
           console.error('Error fetching user role:', err);
           setUserRole('user');
@@ -53,23 +51,23 @@ function MyApp({ Component, pageProps }) {
   useEffect(() => {
     const fetchConfig = async () => {
       try {
-        const allowedDoc = await getDoc(doc(db, 'config', 'allowed_devices'));
-        // setAllowedFingerprints(allowedDoc.exists() ? allowedDoc.data().fingerprints || ["2548b6dbf98fc0195a017059f18f548e9dcc13c9a219f1c03e33a01b3cdd51c1","2548b6dbf98fc0195a017059f18f548e9dcc13c9a219f1c03e33a01b3cdd51c1"] : ["2548b6dbf98fc0195a017059f18f548e9dcc13c9a219f1c03e33a01b3cdd51c1"]);
+        const fingerprintsResponse = await apiService.config.getFingerprints();
+        setAllowedFingerprints(fingerprintsResponse.data.success ? fingerprintsResponse.data.data : []);
 
-        const shiftDoc = await getDoc(doc(db, 'config', 'shift_times'));
+        const shiftTimesResponse = await apiService.config.getShiftTimes();
         setShiftTimes(
-          shiftDoc.exists()
-            ? shiftDoc.data()
+          shiftTimesResponse.data.success
+            ? shiftTimesResponse.data.data
             : {
-              timeoutHour: 12,
-              timeoutMinute: 40,
-              timeInHour: 8,
-              timeInMinute: 0,
-              lastResetDate: ''
-            }
+                timeoutHour: 12,
+                timeoutMinute: 40,
+                timeInHour: 8,
+                timeInMinute: 0,
+                lastResetDate: ''
+              }
         );
       } catch (err) {
-        console.error('Error fetching Firestore config:', err);
+        console.error('Error fetching config via API:', err);
         setAllowedFingerprints([]);
       } finally {
         setConfigLoading(false);

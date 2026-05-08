@@ -6,8 +6,7 @@ import { toast } from 'react-hot-toast';
 import { Search, Users, Home, Phone, Store, MapPin, FileText, User, Calendar, CreditCard, AlertCircle, DollarSign, Send, Clock } from 'lucide-react';
 import { Tooltip } from 'react-tooltip';
 import Layout from '../components/Layout';
-import { doc, getDoc } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import Layout from '../components/Layout';
 
 // Utility function for retrying API calls with exponential backoff
 const retryWithBackoff = async (fn, retries = 3, delay = 1000) => {
@@ -139,10 +138,9 @@ export default function Customers() {
     const checkUserStatus = async () => {
       if (user?.uid) {
         try {
-          const userDocRef = doc(db, 'users', user.uid);
-          const userDoc = await getDoc(userDocRef);
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
+          const response = await apiService.users.getMe();
+          if (response.data.success) {
+            const userData = response.data.data;
             setIsDisabled(userData.disabled || false);
           }
         } catch (error) {

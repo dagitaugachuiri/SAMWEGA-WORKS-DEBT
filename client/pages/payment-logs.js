@@ -1,12 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { signOut } from 'firebase/auth';
-import { auth, db } from '../lib/firebase';
+import { auth } from '../lib/firebase';
 import { useAuth } from './_app';
 import { toast } from 'react-hot-toast';
 import { DownloadIcon, Home, Clipboard, Check, Brain } from 'lucide-react';
-import { collection, getDocs, doc, updateDoc, query, getDoc } from 'firebase/firestore';
-import apiService from '../lib/api';
+import { apiService } from '../lib/api';
 
 export default function PaymentLogs() {
   const [logs, setLogs] = useState([]);
@@ -60,49 +59,44 @@ Guidelines:
     const fetchPaymentLogs = async () => {
       setLoading(true);
       try {
-        const q = query(collection(db, "payment_logs"));
-        const snapshot = await getDocs(q);
-        const logsData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-// Filter logs to include only those that were successfully processed(log.success==true) and from 9th October  2025 onwards
- 
-        const filteredLogs = logsData.filter(log => {
-          const logDate = new Date(
-            log.processedAt
-              ? log.processedAt.seconds * 1000
-              : log.createdAt
-              ? log.createdAt.seconds * 1000
-              : log.transactionDate?.seconds * 1000
-          );
-          return logDate >= new Date("2025-10-09") && log.success === true;
-        });
+        const response = await apiService.payments.getAllLogs();
+        if (response.data.success) {
+          const logsData = response.data.data;
+          
+          // Filter logs to include only those that were successfully processed(log.success==true) and from 9th October 2025 onwards
+          const filteredLogs = logsData.filter(log => {
+            const logDate = new Date(
+              log.processedAt
+                ? (log.processedAt.seconds ? log.processedAt.seconds * 1000 : log.processedAt)
+                : log.createdAt
+                ? (log.createdAt.seconds ? log.createdAt.seconds * 1000 : log.createdAt)
+                : (log.transactionDate?.seconds ? log.transactionDate.seconds * 1000 : log.transactionDate)
+            );
+            return logDate >= new Date("2025-10-09") && log.success === true;
+          });
 
-  console.log("Fetched and filtered payment logs:", filteredLogs);
-  
-      
-//this is the console log for each payment log. i want to create a func that fetches debt details using its debtId and append the debt details to each payment log object 
-const fetchDebtDetails = async (debtId) => {
-  try {
-    const debtDoc = await getDoc(doc(db, 'debts', debtId));
-    if (debtDoc.exists()) {
-      return { id: debtDoc.id, ...debtDoc.data() };
-    }
-  } catch (error) {
-    console.error('Error fetching debt details:', error);
-  }
-  return null;
-};
-        const logsWithDebtDetails = await Promise.all(
-          filteredLogs.map(async (log) => {
-            const debtDetails = log.debtId ? await fetchDebtDetails(log.debtId) : null;
-            return { ...log, debtDetails };
-          })
-        );
-        console.log("Payment logs with debt details:", logsWithDebtDetails);
-        
-        setLogs(logsWithDebtDetails);
+          console.log("Fetched and filtered payment logs:", filteredLogs);
+          
+          // Since the server doesn't enrich with debt details yet, we can do it here or assume the server handles it
+          // For now, let's keep the client-side enrichment if needed, but using apiService.debts.getById
+          const logsWithDebtDetails = await Promise.all(
+            filteredLogs.map(async (log) => {
+              if (log.debtId) {
+                try {
+                  const debtRes = await apiService.debts.getById(log.debtId);
+                  if (debtRes.data.success) {
+                    return { ...log, debtDetails: debtRes.data.data };
+                  }
+                } catch (err) {
+                  console.error('Error fetching debt details:', err);
+                }
+              }
+              return { ...log, debtDetails: null };
+            })
+          );
+          
+          setLogs(logsWithDebtDetails);
+        }
       } catch (error) {
         console.error("Error fetching payment logs:", error);
         toast.error("Failed to load logs");
@@ -113,9 +107,10 @@ const fetchDebtDetails = async (debtId) => {
 
     const fetchUsers = async () => {
       try {
-        const usersSnapshot = await getDocs(collection(db, 'users'));
-        const usersData = usersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setUsers(usersData);
+        const response = await apiService.users.getAll();
+        if (response.data.success) {
+          setUsers(response.data.data);
+        }
       } catch (error) {
         console.error('Error fetching users:', error);
         toast.error('Failed to load users');
@@ -124,9 +119,10 @@ const fetchDebtDetails = async (debtId) => {
 
     const fetchVehicles = async () => {
       try {
-        const vehiclesSnapshot = await getDocs(collection(db, 'vehicles'));
-        const vehiclesData = vehiclesSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setVehicles(vehiclesData);
+        const response = await apiService.config.getVehicles();
+        if (response.data.success) {
+          setVehicles(response.data.data);
+        }
       } catch (error) {
         console.error('Error fetching vehicles:', error);
         toast.error('Failed to load vehicles');
@@ -161,10 +157,12 @@ fetchVehicles();
   const confirmVerify = async () => {
     if (selectedLog) {
       try {
-        await updateDoc(doc(db, 'payment_logs', selectedLog.id), { verified: true });
-        setLogs(logs.map(l => l.id === selectedLog.id ? { ...l, verified: true } : l));
-        toast.success('Transaction verified successfully');
-        setShowVerifyModal(false);
+        const response = await apiService.payments.verifyLog(selectedLog.id);
+        if (response.data.success) {
+          setLogs(logs.map(l => l.id === selectedLog.id ? { ...l, verified: true } : l));
+          toast.success('Transaction verified successfully');
+          setShowVerifyModal(false);
+        }
       } catch (error) {
         console.error('Error verifying transaction:', error);
         toast.error('Failed to verify transaction');

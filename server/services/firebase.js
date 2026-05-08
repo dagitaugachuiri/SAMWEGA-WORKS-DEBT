@@ -14,20 +14,16 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
-let cachedServerUid = null;
-
+let cachedServerUid= null;
 const initializeFirebase = async () => {
   try {
     if (process.env.DEMO_MODE === 'true') {
       console.log('🎭 Running in DEMO MODE - Firebase disabled');
       return;
     }
-
-    // Return cached UID if we've already signed in
-    if (cachedServerUid) {
-      return cachedServerUid;
-    }
-
+if(cachedServerUid){
+  return cachedServerUid
+}
     // Validate environment variables
     if (!process.env.FIREBASE_SERVER_EMAIL) {
       throw new Error('FIREBASE_SERVER_EMAIL is not set in .env');
@@ -42,10 +38,10 @@ const initializeFirebase = async () => {
       process.env.FIREBASE_SERVER_EMAIL,
       process.env.FIREBASE_SERVER_PASSWORD
     );
-
-    cachedServerUid = userCredential.user.uid;
+    cachedServerUid= userCredential.user.uid;
     console.log('✅ Firebase Client SDK initialized successfully, signed in as:', userCredential.user.email);
-    return cachedServerUid;
+    return  cachedServerUid; 
+    
   } catch (error) {
     console.error('❌ Firebase initialization error:', error.message);
     throw error;
@@ -68,16 +64,16 @@ const getFirestoreApp = () => {
           limit: () => ({
             get: async () => ({ empty: true, docs: [] })
           }),
-          get: async () => ({ empty: true, size: 0, forEach: () => { } })
+          get: async () => ({ empty: true, size: 0, forEach: () => {} })
         }),
         orderBy: () => ({
           limit: () => ({
             offset: () => ({
-              get: async () => ({ docs: [], forEach: () => { } })
+              get: async () => ({ docs: [], forEach: () => {} })
             })
           })
         }),
-        get: async () => ({ size: 0, forEach: () => { } })
+        get: async () => ({ size: 0, forEach: () => {} })
       })
     };
   }

@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
 import { useAuth } from './_app';
+import { apiService } from '../lib/api';
 import { toast } from 'react-hot-toast';
 import { UserPlus, ArrowLeft, CheckCircle, Copy, X } from 'lucide-react';
 import { Tooltip } from 'react-tooltip';
@@ -31,22 +29,16 @@ export default function CreateUser() {
     const fetchUserData = async () => {
       if (user) {
         try {
-          console.log('Fetching user data for UID:', user.uid);
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          if (userDoc.exists()) {
-            setUserRole(userDoc.data().role || 'user');
-            setCreatorName(userDoc.data().name || 'Unknown');
-            console.log('User role:', userDoc.data().role, 'Name:', userDoc.data().name);
-          } else {
-            setUserRole('user');
-            setCreatorName('Unknown');
-            console.log('No Firestore document found, defaulting to user role and unknown name');
+          console.log('Fetching user data for current user via API');
+          const response = await apiService.users.getMe();
+          if (response.data.success) {
+            const userData = response.data.data;
+            setUserRole(userData.role || 'user');
+            setCreatorName(userData.name || 'Unknown');
           }
         } catch (error) {
           console.error('Error fetching user data:', error);
           toast.error('Failed to load user data');
-          setUserRole('user');
-          setCreatorName('Unknown');
         }
       }
       setRoleLoading(false);
@@ -65,50 +57,27 @@ export default function CreateUser() {
     setLoading(true);
 
     try {
-      // Store admin's email for re-authentication
-      const adminEmail = user.email;
-
-      // Sign out the current user
-      await signOut(auth);
-
-      // Create new user
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const newUser = userCredential.user;
-
-      // Store user data in Firestore
-      await setDoc(doc(db, 'users', newUser.uid), {
+      // Create user via server-side API (no need to sign out admin!)
+      const response = await apiService.users.create({
         email,
-        name: name || '',
+        password,
+        name,
         role,
-        phoneNumber: phoneNumber || '',
-        disabled: false,
-        createdAt: new Date().toISOString(),
-        createdBy: user.uid,
+        phoneNumber,
         createdByName: creatorName
       });
 
-      // Sign the admin back in
-      await signInWithEmailAndPassword(auth, adminEmail, adminPassword);
-
-      // Show credentials in modal
-      setCredentials({ email, password });
-      setShowCredentialsModal(true);
-      setShowPasswordPrompt(false);
-      setAdminPassword('');
-      toast.success('User created successfully!');
+      if (response.data.success) {
+        // Show credentials in modal
+        setCredentials({ email, password });
+        setShowCredentialsModal(true);
+        setShowPasswordPrompt(false);
+        setAdminPassword('');
+        toast.success('User created successfully!');
+      }
     } catch (error) {
       console.error('Error creating user:', error);
-      toast.error(error.message || 'Failed to create user');
-      // Attempt to sign the admin back in if creation fails
-      if (user?.email) {
-        try {
-          await signInWithEmailAndPassword(auth, user.email, adminPassword);
-        } catch (signInError) {
-          console.error('Error signing admin back in:', signInError);
-          toast.error('Failed to restore admin session. Please sign in again.');
-          router.push('/login');
-        }
-      }
+      toast.error(error.response?.data?.error || error.message || 'Failed to create user');
     } finally {
       setLoading(false);
     }

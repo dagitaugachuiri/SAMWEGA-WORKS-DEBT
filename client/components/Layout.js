@@ -1,9 +1,6 @@
 import Head from 'next/head';
 import { useEffect, useState } from 'react';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
-import { app } from '../lib/firebase'; // Adjust the path if your Firebase config is in a different file
-
-const db = getFirestore(app);
+import { apiService } from '../lib/api';
 
 export default function Layout({ children, title = 'Samwega Debt Management', userId }) {
   const [isDisabled, setIsDisabled] = useState(false);
@@ -13,10 +10,9 @@ export default function Layout({ children, title = 'Samwega Debt Management', us
     const checkUserStatus = async () => {
       if (userId) {
         try {
-          const userDocRef = doc(db, 'users', userId);
-          const userDoc = await getDoc(userDocRef);
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
+          const response = await apiService.users.getMe();
+          if (response.data.success) {
+            const userData = response.data.data;
             setIsDisabled(userData.disabled || false);
           }
         } catch (error) {

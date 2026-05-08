@@ -5,8 +5,8 @@ import { apiService } from '../lib/api';
 import { toast } from 'react-hot-toast';
 import { useAuth } from './_app';
 import Layout from '../components/Layout';
-import { doc, getDoc, getDocs, collection, query, where } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import Layout from '../components/Layout';
+import { auth } from '../lib/firebase';
 
 export default function CreateDebt() {
   const [loading, setLoading] = useState(false);
@@ -25,31 +25,36 @@ export default function CreateDebt() {
   // Fetch sales reps and vehicles
   useEffect(() => {
     const fetchData = async () => {
-      const repsSnap = await getDocs(collection(db, "salesReps"));
-      setSalesReps(repsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-
-      const vehiclesSnap = await getDocs(collection(db, "vehicles"));
-      setVehicles(vehiclesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      try {
+        const vehiclesSnap = await apiService.config.getVehicles();
+        if (vehiclesSnap.data.success) {
+          setVehicles(vehiclesSnap.data.data);
+        }
+        
+        const repsSnap = await apiService.config.getSalesReps();
+        if (repsSnap.data.success) {
+          setSalesReps(repsSnap.data.data);
+        }
+      } catch (err) {
+        console.error('Error fetching data:', err);
+      }
     };
 
     fetchData();
   }, []);
 
-  // Fetch creator's name from Firestore
+  // Fetch creator's name
   useEffect(() => {
     const fetchCreatorName = async () => {
       if (user?.uid) {
         try {
-          const userDoc = await getDoc(doc(db, 'users', user.uid));
-          if (userDoc.exists()) {
-            setCreatorName(userDoc.data().name || 'Unknown');
-          } else {
-            setCreatorName('Unknown');
+          const response = await apiService.users.getMe();
+          if (response.data.success) {
+            setCreatorName(response.data.data.name || 'Unknown');
           }
         } catch (error) {
           console.error('Error fetching creator name:', error);
           setCreatorName('Unknown');
-          toast.error('Failed to load creator name');
         }
       }
     };
@@ -78,27 +83,27 @@ export default function CreateDebt() {
     }
 
     try {
-      const customersQuery = query(collection(db, 'customers'), where('phoneNumber', '==', phoneNumber));
-      const querySnapshot = await getDocs(customersQuery);
+      const response = await apiService.customers.getById(phoneNumber);
 
-      if (querySnapshot.empty) {
+      if (response.data.success) {
+        const customer = response.data.data;
+        setStoreOwnerName(customer.name || '');
+        setEmail(customer.email || '');
+        setStoreName(customer.shopName || '');
+        setLocation(customer.location || '');
+        toast.success('Customer details loaded successfully');
+      }
+    } catch (error) {
+      console.error('Error fetching customer details:', error);
+      if (error.response?.status === 404) {
         toast.error('No customer found with this phone number');
         setStoreOwnerName('');
         setEmail('');
         setStoreName('');
         setLocation('');
-        return;
+      } else {
+        toast.error('Failed to fetch customer details');
       }
-
-      const customer = querySnapshot.docs[0].data();
-      setStoreOwnerName(customer.name || '');
-      setEmail(customer.email || '');
-      setStoreName(customer.shopName || '');
-      setLocation(customer.location || '');
-      toast.success('Customer details loaded successfully');
-    } catch (error) {
-      console.error('Error fetching customer details:', error);
-      toast.error('Failed to fetch customer details');
     }
   };
 

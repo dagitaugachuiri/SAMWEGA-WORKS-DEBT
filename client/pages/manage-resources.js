@@ -3,14 +3,7 @@ import Layout from '../components/Layout';
 import { useRouter } from 'next/router';
 import { ArrowLeft, Plus, Trash2, Edit } from 'lucide-react';
 import { toast } from 'react-hot-toast';
-import { db } from '../lib/firebase';
-import {
-  collection,
-  getDocs,
-  addDoc,
-  deleteDoc,
-  doc,
-} from 'firebase/firestore';
+import { apiService } from '../lib/api';
 
 export default function ManageResources() {
   const router = useRouter();
@@ -20,13 +13,18 @@ export default function ManageResources() {
   const [showInput, setShowInput] = useState(null); // "vehicle" | "rep" | null
   const [inputValue, setInputValue] = useState('');
 
-  // Load from Firestore
+  // Load from API
   useEffect(() => {
     const loadData = async () => {
-      const vSnap = await getDocs(collection(db, 'vehicles'));
-      const rSnap = await getDocs(collection(db, 'salesReps'));
-      setVehicles(vSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      setSalesReps(rSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      try {
+        const vRes = await apiService.config.getVehicles();
+        const rRes = await apiService.config.getSalesReps();
+        if (vRes.data.success) setVehicles(vRes.data.data);
+        if (rRes.data.success) setSalesReps(rRes.data.data);
+      } catch (err) {
+        console.error('Error loading data:', err);
+        toast.error('Failed to load data');
+      }
     };
     loadData();
   }, []);
@@ -36,17 +34,17 @@ export default function ManageResources() {
 
     try {
       if (showInput === 'vehicle') {
-        const docRef = await addDoc(collection(db, 'vehicles'), {
-          plateNumber: inputValue,
-        });
-        setVehicles([...vehicles, { id: docRef.id, plateNumber: inputValue }]);
-        toast.success('Vehicle added');
+        const response = await apiService.config.addVehicle(inputValue);
+        if (response.data.success) {
+          setVehicles([...vehicles, response.data.data]);
+          toast.success('Vehicle added');
+        }
       } else if (showInput === 'rep') {
-        const docRef = await addDoc(collection(db, 'salesReps'), {
-          name: inputValue,
-        });
-        setSalesReps([...salesReps, { id: docRef.id, name: inputValue }]);
-        toast.success('Sales rep added');
+        const response = await apiService.config.addSalesRep(inputValue);
+        if (response.data.success) {
+          setSalesReps([...salesReps, response.data.data]);
+          toast.success('Sales rep added');
+        }
       }
       setInputValue('');
       setShowInput(null);
@@ -56,15 +54,27 @@ export default function ManageResources() {
   };
 
   const deleteVehicle = async (id) => {
-    await deleteDoc(doc(db, 'vehicles', id));
-    setVehicles(vehicles.filter((v) => v.id !== id));
-    toast.success('Vehicle deleted');
+    try {
+      const response = await apiService.config.deleteVehicle(id);
+      if (response.data.success) {
+        setVehicles(vehicles.filter((v) => v.id !== id));
+        toast.success('Vehicle deleted');
+      }
+    } catch (err) {
+      toast.error('Error deleting vehicle');
+    }
   };
 
   const deleteSalesRep = async (id) => {
-    await deleteDoc(doc(db, 'salesReps', id));
-    setSalesReps(salesReps.filter((r) => r.id !== id));
-    toast.success('Sales rep deleted');
+    try {
+      const response = await apiService.config.deleteSalesRep(id);
+      if (response.data.success) {
+        setSalesReps(salesReps.filter((r) => r.id !== id));
+        toast.success('Sales rep deleted');
+      }
+    } catch (err) {
+      toast.error('Error deleting sales rep');
+    }
   };
 
   return (

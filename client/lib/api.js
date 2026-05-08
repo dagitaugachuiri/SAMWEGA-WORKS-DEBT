@@ -1,15 +1,21 @@
 
 
 import axios from 'axios';
+import { signOut } from 'firebase/auth';
 import { auth } from './firebase';
 import { toast } from 'react-hot-toast';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
 
-// Create axios instance without default Content-Type
+// Create axios instance
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000000,
+  timeout: 30000, // Reduced to a more reasonable value
+  withCredentials: true,
+  headers: {
+    'Accept': 'application/json',
+    'X-Requested-With': 'XMLHttpRequest'
+  }
 });
 
 // Request interceptor to add auth token
@@ -38,7 +44,7 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      auth.signOut();
+      signOut(auth);
       window.location.href = '/login';
     }
     return Promise.reject(error);
@@ -49,8 +55,11 @@ api.interceptors.response.use(
 export const apiService = {
   payments: {
     getProcessorStatus: () => api.get('/api/payments/processor/status'),
-   generatePDF: (data) => api.post('/api/payments/generate-pdf', data, { responseType: 'blob' }),
-       checkDebt: (debtCode) => api.post('/api/payments/processor/check-debt', { debtCode }),
+    generatePDF: (data) => api.post('/api/payments/generate-pdf', data, { responseType: 'blob' }),
+    checkDebt: (debtCode) => api.post('/api/payments/processor/check-debt', { debtCode }),
+    getAllLogs: () => api.get('/api/payments/logs'),
+    verifyLog: (id) => api.patch(`/api/payments/logs/${id}/verify`),
+    verifyTransaction: (data) => api.post('/api/payments/verify-transaction', data),
   },
   // Debt management
   debts: {
@@ -77,10 +86,11 @@ export const apiService = {
     // Delete debt
     delete: (debtId) => api.delete(`/api/debts/${debtId}`),
 
+    // Update debt details
+    update: (id, data) => api.patch(`/api/debts/${id}`, data),
+
     // Resend invoice SMS
-    resendInvoiceSMS: async (debtId) => {
-      return axios.post(`${API_BASE_URL}/api/debts/${debtId}/resend-invoice-sms`);
-    },
+    resendInvoiceSMS: (debtId) => api.post(`/api/debts/${debtId}/resend-invoice-sms`),
 
     // Trigger reconciliation
     reconcile: async () => {
@@ -107,6 +117,56 @@ export const apiService = {
 
     // Send custom message to multiple customers
     sendCustomMessage: (data) => api.post('/api/customers/send-message', data),
+  },
+
+  // User management
+  users: {
+    // Get all users
+    getAll: () => api.get('/api/users'),
+    
+    // Get current user
+    getMe: () => api.get('/api/users/me'),
+    
+    // Get user by ID
+    getById: (id) => api.get(`/api/users/${id}`),
+    
+    // Create new user
+    create: (userData) => api.post('/api/users', userData),
+    
+    // Update user
+    update: (id, userData) => api.put(`/api/users/${id}`, userData),
+    
+    // Update password
+    updatePassword: (id, password) => api.put(`/api/users/${id}/password`, { password }),
+    
+    // Resolve email from identifier
+    resolveEmail: (identifier) => api.get(`/api/users/resolve/${encodeURIComponent(identifier)}`),
+  },
+
+  // Configuration management
+  config: {
+    // Get fingerprints
+    getFingerprints: () => api.get('/api/config/fingerprints'),
+    
+    // Get shift times
+    getShiftTimes: () => api.get('/api/config/shift-times'),
+
+    // Get authorized vehicles
+    getVehicles: () => api.get('/api/config/vehicles'),
+    addVehicle: (plateNumber) => api.post('/api/config/vehicles', { plateNumber }),
+    deleteVehicle: (id) => api.delete(`/api/config/vehicles/${id}`),
+
+    // Get sales reps
+    getSalesReps: () => api.get('/api/config/salesReps'),
+    addSalesRep: (name) => api.post('/api/config/salesReps', { name }),
+    deleteSalesRep: (id) => api.delete(`/api/config/salesReps/${id}`),
+  },
+
+  // Supplier debts
+  supplierDebts: {
+    getAll: (params = {}) => api.get('/api/supplier-debts', { params }),
+    create: (data) => api.post('/api/supplier-debts', data),
+    markAsPaid: (id) => api.patch(`/api/supplier-debts/${id}/paid`),
   },
 
  

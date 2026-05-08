@@ -1,7 +1,8 @@
 const express = require('express');
 const { authenticate } = require('../middleware/auth');
 const smsService = require('../services/sms');
-const { getFirestore, getFirestoreApp } = require('../services/firebase');
+const admin = require('../services/firebase-admin');
+const db = admin.firestore();
 const pdfParse = require('pdf-parse');
 const formidable = require('formidable');
 const fs = require('fs');
@@ -22,7 +23,6 @@ router.post('/manual-approve/:debtId', async (req, res) => {
       return res.status(401).json({ success: false, error: 'Invalid approval code' });
     }
 
-    const db = getFirestore();
     const debtDoc = await db.collection('debts').doc(debtId).get();
 
     if (!debtDoc.exists) {
@@ -46,7 +46,6 @@ router.post('/manual-approve/:debtId', async (req, res) => {
 router.post('/manual-request', authenticate, async (req, res) => {
   try {
     const { debtId } = req.body;
-    const db = getFirestore();
     const debtDoc = await db.collection('debts').doc(debtId).get();
 
     if (!debtDoc.exists) {
@@ -81,7 +80,6 @@ router.get('/instructions/:debtCode', authenticate, async (req, res) => {
     const { debtCode } = req.params;
     
     // Get debt details
-    const db = getFirestore();
     const debtQuery = await db.collection('debts')
       .where('debtCode', '==', debtCode)
       .limit(1)
@@ -272,6 +270,105 @@ router.post('/generate-pdf', authenticate, async (req, res) => {
 
 
 
+
+// Get all payment logs
+router.get('/logs', authenticate, async (req, res) => {
+  try {
+    const snapshot = await db.collection('payment_logs').get();
+    const logs = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+    res.json({ success: true, data: logs });
+  } catch (error) {
+    console.error('Error fetching payment logs:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch payment logs' });
+  }
+});
+
+// Verify a payment log
+router.patch('/logs/:id/verify', authenticate, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.collection('payment_logs').doc(id).update({ verified: true });
+    res.json({ success: true, message: 'Payment log verified successfully' });
+  } catch (error) {
+    console.error('Error verifying payment log:', error);
+    res.status(500).json({ success: false, error: 'Failed to verify payment log' });
+  }
+});
+
+// Verify and register transaction code
+router.post('/verify-transaction', authenticate, async (req, res) => {
+  try {
+    const { transactionCode, amount, debtId } = req.body;
+    const userId = req.user.uid;
+
+    const parseTransactionCode = (code) => {
+      const match = code.match(/^(.+?)(?:\((\d+(?:\.\d+)?)\))?$/);
+      if (!match) return { baseCode: code.trim(), declaredTotal: null };
+      return {
+        baseCode: match[1].trim(),
+        declaredTotal: match[2] ? parseFloat(match[2]) : null,
+      };
+    };
+
+    const { baseCode, declaredTotal } = parseTransactionCode(transactionCode);
+    const docRef = db.collection('manual-transactions').doc(baseCode);
+    const docSnap = await docRef.get();
+
+    if (!docSnap.exists) {
+      const totalAmount = declaredTotal || amount;
+      const newTransaction = {
+        transactionCode: baseCode,
+        totalAmount,
+        remainingAmount: totalAmount - amount,
+        usedAmounts: [
+          {
+            debtId,
+            usedBy: userId,
+            amount,
+            timestamp: new Date().toISOString(),
+          },
+        ],
+        createdAt: new Date(),
+      };
+      await docRef.set(newTransaction);
+      return res.json({ success: true });
+    }
+
+    const data = docSnap.data();
+
+    // If not a multi-debt transaction → reject re-use
+    if (!data.totalAmount || data.totalAmount === data.usedAmounts[0]?.amount) {
+      return res.status(400).json({ success: false, error: 'This transaction code has already been used.' });
+    }
+
+    // Multi-debt case
+    if (data.remainingAmount < amount) {
+      return res.status(400).json({ success: false, error: 'Insufficient remaining balance in this transaction code.' });
+    }
+
+    // Update remaining amount and add usage
+    await docRef.update({
+      remainingAmount: data.remainingAmount - amount,
+      usedAmounts: [
+        ...data.usedAmounts,
+        {
+          debtId,
+          usedBy: userId,
+          amount,
+          timestamp: new Date().toISOString(),
+        },
+      ],
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Transaction verification error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 module.exports = router;
 

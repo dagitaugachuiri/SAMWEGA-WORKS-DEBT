@@ -98,36 +98,27 @@ class SMSService {
     console.log(`   - Store Owner Name: ${debt.storeOwner.name}`);
     console.log(`   - Store Owner Phone Number: ${phoneNumber}`);
     
-    const { debtCode, paymentMethod, dueDate, remainingAmount } = debt;
+    const { remainingAmount } = debt;
     
-    // Format phone number: replace +254 with 0
+    // Format phone number: replace +254 with 0 (used as M-Pesa account number)
     const formattedPhoneNumber = phoneNumber.replace(/^\+254/, '0');
     
-    // Use remaining amount instead of original amount
+    // Use remaining amount, fallback to original amount
     const formattedAmount = new Intl.NumberFormat('en-KE', {
       style: 'decimal',
       maximumFractionDigits: 0
-    }).format(remainingAmount || debt.amount); // Fallback to original amount if remaining not set
+    }).format(remainingAmount || debt.amount);
 
-    // Format date in shorter format
-    console.log(`   - Due Date: ${dueDate}`);
-    const formattedDate = new Date(dueDate).toLocaleDateString('en-GB', {
-      day: '2-digit',
-      month: '2-digit',
-      year: '2-digit'
-    });
+    // Payment instructions: always use Samwega paybill, account = customer phone number
+    const paybill = process.env.SAMWEGA_PAYBILL;
+    const paymentInfo = `Paybill ${paybill}, Acc ${formattedPhoneNumber}`;
 
-    // Create payment instructions using formatted phone number
-    const paymentInfo = paymentMethod === 'mpesa' 
-      ? `Paybill ${process.env.SAMWEGA_PAYBILL}, Acc ${formattedPhoneNumber}`
-      : `Ref: ${formattedPhoneNumber}`;
-
-    // Construct message with remaining amount
-    const message = `Dear ${debt.storeOwner.name}, Outstanding Ksh${formattedAmount}. ${paymentInfo}. Pay by ${formattedDate} for inquiries call 0113689071.`;
+    // Construct message — no due date included
+    const message = `Dear ${debt.storeOwner.name}, you have an outstanding balance of Ksh${formattedAmount}. Ref: ${debt.debtCode}. Pay via M-Pesa ${paymentInfo}. For inquiries call 0113689071.`;
 
     console.log('✅ Invoice SMS generated successfully');
     console.log(`   - Message length: ${message.length} characters`);
-    console.log(`   - Message preview: ${message.substring(0, 100)}...`);
+    console.log(`   - Message: ${message}`);
 
     return message;
 }

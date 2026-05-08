@@ -6,7 +6,6 @@ import { toast } from 'react-hot-toast';
 import { Search, Users, Home, Phone, Store, MapPin, FileText, User, Calendar, CreditCard, AlertCircle, DollarSign, Send, Clock } from 'lucide-react';
 import { Tooltip } from 'react-tooltip';
 import Layout from '../components/Layout';
-import Layout from '../components/Layout';
 
 // Utility function for retrying API calls with exponential backoff
 const retryWithBackoff = async (fn, retries = 3, delay = 1000) => {

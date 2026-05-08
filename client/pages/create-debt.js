@@ -5,7 +5,6 @@ import { apiService } from '../lib/api';
 import { toast } from 'react-hot-toast';
 import { useAuth } from './_app';
 import Layout from '../components/Layout';
-import Layout from '../components/Layout';
 import { auth } from '../lib/firebase';
 
 export default function CreateDebt() {

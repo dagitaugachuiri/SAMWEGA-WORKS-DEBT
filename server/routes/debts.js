@@ -530,10 +530,6 @@ router.post('/:debtId/manual-request', authenticate, async (req, res) => {
     const debt = debtDoc.data();
     const isAdmin = req.user.role === 'admin' || req.user.admin === true;
 
-    if (debt.userId !== userId && !isAdmin) {
-      return res.status(403).json({ success: false, error: 'Access denied' });
-    }
-
     if (debt.status === 'paid') {
       return res.status(400).json({ success: false, error: 'Debt is already fully paid' });
     }
@@ -582,12 +578,6 @@ router.patch('/:id/status', authenticate, async (req, res) => {
     const debt = debtSnapshot.data();
 
     const isAdmin = req.user.role === 'admin' || req.user.admin === true;
-    if (debt.userId !== userId && !isAdmin) {
-      return res.status(403).json({
-        success: false,
-        error: 'Access denied',
-      });
-    }
 
     await updateDoc(debtDoc, {
       status,

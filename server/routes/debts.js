@@ -362,12 +362,6 @@ router.post('/:id/payment', authenticate, validate(schemas.payment), async (req,
     const debt = debtSnapshot.data();
 
     const isAdmin = req.user.role === 'admin' || req.user.admin === true;
-    if (debt.userId !== userId && !isAdmin) {
-      return res.status(403).json({
-        success: false,
-        error: 'Access denied',
-      });
-    }
 
     if (debt.status === 'paid') {
       return res.status(400).json({
@@ -644,9 +638,6 @@ router.patch('/:id', authenticate, async (req, res) => {
     const debt = debtSnapshot.data();
     const isAdmin = req.user.role === 'admin' || req.user.admin === true;
 
-    if (debt.userId !== userId && !isAdmin) {
-      return res.status(403).json({ success: false, error: 'Access denied' });
-    }
 
     await updateDoc(debtDoc, updateData);
 
@@ -741,12 +732,6 @@ router.post('/:id/resend-invoice-sms', authenticate, async (req, res) => {
 
     // Check ownership
     const isAdmin = req.user.role === 'admin' || req.user.admin === true;
-    if (debt.userId !== userId && !isAdmin) {
-      return res.status(403).json({
-        success: false,
-        error: 'Access denied'
-      });
-    }
 
     if (debt.remainingAmount <= 0) {
       return res.status(400).json({

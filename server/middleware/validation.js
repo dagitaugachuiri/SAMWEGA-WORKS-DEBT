@@ -46,7 +46,8 @@ const debtSchema = Joi.object({
       'string.base': 'Sales representative name must be a string',
       'string.min': 'Sales representative name must be at least 2 characters',
       'string.max': 'Sales representative name must not exceed 100 characters'
-    })
+    }),
+  salesRepEmail: Joi.string().email().optional().allow('')
 });
 
 // Payment processing validation schema

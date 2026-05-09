@@ -1,5 +1,5 @@
 const express = require('express');
-const { collection, addDoc, getDocs, query, where, orderBy, limit, startAfter, doc, getDoc, updateDoc, setDoc, getFirestore, arrayUnion } = require('firebase/firestore');
+const { collection, addDoc, getDocs, query, where, or, orderBy, limit, startAfter, doc, getDoc, updateDoc, setDoc, getFirestore, arrayUnion } = require('firebase/firestore');
 const { getFirestoreApp } = require('../services/firebase');
 const { authenticate } = require('../middleware/auth');
 const { validate, schemas } = require('../middleware/validation');
@@ -50,6 +50,7 @@ router.post('/', authenticate, validate(schemas.debt), async (req, res) => {
     // Create debt record, preserving original flexibility with req.body
     const debtData = {
       ...req.body,
+      salesRep: (req.body.salesRep || '').trim(),
       userId,
       debtCode,
       status: 'pending',
@@ -149,24 +150,19 @@ router.get('/', authenticate, async (req, res) => {
     // Get current timestamp in seconds for overdue comparison
     const currentTimestamp = Math.floor(Date.now() / 1000);
 
-    // Fetch user role from Firestore to check for admin status
+    // Fetch user role from Firestore
     const userDocRef = doc(db, 'users', userId);
     const userDocSnap = await getDoc(userDocRef);
-    const userRole = userDocSnap.exists() ? userDocSnap.data().role : 'user';
-    const isAdmin = userRole === 'admin';
+    const userData = userDocSnap.exists() ? userDocSnap.data() : { role: 'user', name: '' };
+    const userRole = userData.role;
+    const isAdmin = userRole === 'admin' || userData.admin === true;
 
     console.log(`User ${userId} (role: ${userRole}) fetching debts. IsAdmin: ${isAdmin}`);
 
-    // Base query for debts
-    // If admin, we can fetch all debts. If not, only fetch user's own debts.
-    let q;
-    if (isAdmin) {
-      console.log('Admin detected, fetching all debts from collection');
-      q = query(collection(db, 'debts'));
-    } else {
-      console.log(`Regular user detected, filtering debts by userId: ${userId}`);
-      q = query(collection(db, 'debts'), where('userId', '==', userId));
-    }
+    // All authenticated users can see all debts.
+    // Admins and regular users both fetch the full collection.
+    console.log('Fetching all debts from collection');
+    let q = query(collection(db, 'debts'));
 
     // Apply status filter if provided (excluding overdue)
     if (status && ['pending', 'paid', 'partially_paid'].includes(status)) {
@@ -182,9 +178,7 @@ router.get('/', authenticate, async (req, res) => {
     q = query(q, limit(limitNum));
 
     if (offsetNum > 0) {
-      const offsetQuery = isAdmin
-        ? query(collection(db, 'debts'), orderBy(sortBy, sortOrder))
-        : query(collection(db, 'debts'), where('userId', '==', userId), orderBy(sortBy, sortOrder));
+      const offsetQuery = query(collection(db, 'debts'), orderBy(sortBy, sortOrder));
       const offsetSnapshot = await getDocs(offsetQuery);
       const lastVisible = offsetSnapshot.docs[offsetNum - 1];
       if (lastVisible) {

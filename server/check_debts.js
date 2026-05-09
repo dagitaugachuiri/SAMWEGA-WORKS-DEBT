@@ -1,29 +1,20 @@
 const admin = require('./services/firebase-admin');
-require('dotenv').config();
-
 const db = admin.firestore();
 
 async function checkDebts() {
-    try {
-        console.log('Checking debts collection...');
-        const snapshot = await db.collection('debts').get();
-        console.log(`Total debts found: ${snapshot.size}`);
-        
-        const userStats = {};
-        snapshot.docs.forEach(doc => {
-            const data = doc.data();
-            const uid = data.userId || 'unknown';
-            userStats[uid] = (userStats[uid] || 0) + 1;
-        });
-
-        console.log('Debts per User:');
-        console.table(userStats);
-
-    } catch (error) {
-        console.error('Error checking debts:', error);
-    } finally {
-        process.exit();
+  try {
+    const snapshot = await db.collection('debts').limit(5).get();
+    if (snapshot.empty) {
+      console.log('No debts found.');
+      return;
     }
+    snapshot.forEach(doc => {
+      const data = doc.data();
+      console.log(`ID: ${doc.id}, userId: ${data.userId}, salesRep: ${data.salesRep}`);
+    });
+  } catch (error) {
+    console.error('Error:', error);
+  }
 }
 
 checkDebts();

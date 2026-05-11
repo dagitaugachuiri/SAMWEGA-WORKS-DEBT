@@ -294,6 +294,72 @@ router.post('/batch', authenticate, async (req, res) => {
   }
 });
 
+// Get debts for a specific customer by phone number or name (for inventory server)
+// Get debts for a specific customer by phone number or name (for inventory server)
+router.get('/customer-debts', authenticate, async (req, res) => {
+  try {
+    const db = getFirestoreApp();
+    let { phoneNumber, name } = req.query;
+
+    if (!phoneNumber && !name) {
+      return res.status(400).json({
+        success: false,
+        error: 'Either phoneNumber or name query parameter is required',
+      });
+    }
+
+    // Normalization helper
+    const normalize = (phone) => {
+      let cleaned = phone.replace(/\s/g, '');
+      if (cleaned.startsWith('0')) return '+254' + cleaned.slice(1);
+      if (cleaned.startsWith('254') && !cleaned.startsWith('+')) return '+' + cleaned;
+      return cleaned;
+    };
+
+    // If name looks like a phone number, treat it as one
+    if (name && (name.startsWith('0') || name.startsWith('254') || name.startsWith('+254'))) {
+      phoneNumber = name;
+      name = null;
+    }
+
+    let q = query(collection(db, 'debts'));
+
+    if (phoneNumber) {
+      const normalizedPhone = normalize(phoneNumber);
+      q = query(q, where('storeOwner.phoneNumber', '==', normalizedPhone));
+    } else if (name) {
+      const searchName = name.trim();
+      // Support prefix matching (e.g., "Edward" matches "Edward ")
+      q = query(
+        q,
+        where('storeOwner.name', '>=', searchName),
+        where('storeOwner.name', '<=', searchName + '\uf8ff')
+      );
+    }
+
+    const snapshot = await getDocs(q);
+    const debts = snapshot.docs
+      .map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+      .filter(debt => debt.status !== 'deleted');
+
+    console.log(`[customer debts] Found ${debts.length} records for search: ${phoneNumber || name}`);
+
+    res.json({
+      success: true,
+      data: debts,
+    });
+  } catch (error) {
+    console.error('Fetch customer debts error:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to fetch customer debts',
+    });
+  }
+});
+
 // Get specific debt by ID
 router.get('/:id', authenticate, async (req, res) => {
   try {

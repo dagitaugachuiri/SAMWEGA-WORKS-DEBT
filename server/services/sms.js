@@ -94,7 +94,7 @@ class SMSService {
   }
 
   generateInvoiceSMS(debt, phoneNumber) {
-    console.log('🚀 DEBUG: [MAIN PROJECT]  triggered');
+    console.log('🚀 DEBUG: [MAIN PROJECT]   triggered');
     console.log('📝 Generating invoice SMS...');
     console.log(`   - Debt Code: ${debt.debtCode}`);
     console.log(`   - Original Amount: ${debt.amount}`);

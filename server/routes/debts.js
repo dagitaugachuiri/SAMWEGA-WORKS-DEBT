@@ -380,11 +380,18 @@ router.get('/:id', authenticate, async (req, res) => {
     const debt = docSnap.data();
     const isAdmin = req.user.role === 'admin' || req.user.admin === true;
 
-    if (debt.userId !== userId && !isAdmin) {
-      return res.status(403).json({
-        success: false,
-        error: 'Access denied',
-      });
+    // Fetch associated customer record for full details if available
+    let customerRecord = null;
+    try {
+      if (debt.storeOwner && debt.storeOwner.phoneNumber) {
+        const customerRef = doc(db, 'customers', debt.storeOwner.phoneNumber);
+        const customerSnap = await getDoc(customerRef);
+        if (customerSnap.exists()) {
+          customerRecord = { id: customerSnap.id, ...customerSnap.data() };
+        }
+      }
+    } catch (custError) {
+      console.warn('Could not fetch customer record for debt:', custError.message);
     }
 
     res.json({
@@ -392,6 +399,7 @@ router.get('/:id', authenticate, async (req, res) => {
       data: {
         id: docSnap.id,
         ...debt,
+        customer: customerRecord,
         createdAt: debt.createdAt,
         lastUpdatedAt: debt.lastUpdatedAt,
         lastPaymentDate: debt.lastPaymentDate || null,

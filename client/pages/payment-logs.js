@@ -27,6 +27,47 @@ export default function PaymentLogs() {
   const router = useRouter();
   const bankOptions = ['Equity', 'Old KCB', 'New KCB', 'Old Absa', 'New Absa', 'Family'];
 
+  const formatTimestamp = (timestamp) => {
+    if (!timestamp || timestamp === 'N/A' || timestamp === 'Invalid Date' || timestamp === 'undefined' || timestamp === 'null') return 'N/A';
+    
+    let date;
+    try {
+      if (typeof timestamp.toDate === 'function') {
+        date = timestamp.toDate();
+      } else if (timestamp.seconds !== undefined) {
+        date = new Date(timestamp.seconds * 1000);
+      } else if (timestamp._seconds !== undefined) {
+        date = new Date(timestamp._seconds * 1000);
+      } else if (typeof timestamp === 'number') {
+        date = new Date(timestamp < 10000000000 ? timestamp * 1000 : timestamp);
+      } else {
+        let ts = timestamp;
+        if (typeof ts === 'string') {
+          if (ts.includes('/') && ts.split('/').length >= 3 && !ts.includes('-')) {
+            const parts = ts.split(/[/ :]/);
+            const day = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1;
+            const year = parseInt(parts[2], 10);
+            const hour = parts[3] ? parseInt(parts[3], 10) : 0;
+            const minute = parts[4] ? parseInt(parts[4], 10) : 0;
+            date = new Date(year, month, day, hour, minute);
+          } else {
+            if (ts.includes(' ') && !ts.includes('T')) {
+                ts = ts.replace(' ', 'T');
+            }
+            date = new Date(ts);
+          }
+        } else {
+          date = new Date(ts);
+        }
+      }
+    } catch (e) {
+      return 'N/A';
+    }
+    
+    return isNaN(date.getTime()) ? 'N/A' : date.toLocaleString('en-GB');
+  };
+
   // AI Verification Prompt
   const aiPrompt = `
 This is an instruction prompt. Do not respond or process until both files have been uploaded.
@@ -434,9 +475,7 @@ fetchVehicles();
                       {log.paymentMethod === 'mpesa_paybill' ? 'System processed/auto' : log.createdBy || 'Unknown'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {log.processedAt
-                        ? new Date(log.processedAt?.toDate()).toLocaleDateString()
-                        : new Date(log.transactionDate?.toDate()).toLocaleDateString()}
+                      {formatTimestamp(log.processedAt || log.transactionDate)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {log.transactionCode || log.transactionId || log.chequeNumber || log.receiptNumber || log.paymentMethod}
@@ -476,12 +515,7 @@ fetchVehicles();
               <p><strong className="text-gray-900">Amount:</strong> {formatCurrency(selectedLog.amount)}</p>
               <p><strong className="text-gray-900">Processed By:</strong> {selectedLog.paymentMethod === 'mpesa_paybill' ? 'System' : selectedLog.createdBy || 'Unknown'}</p>
               <p><strong className="text-gray-900">Payment Method:</strong> {selectedLog.paymentMethod === 'bank' ? `Bank - ${selectedLog.bankDetails?.bankName || 'Unknown'}` : selectedLog.paymentMethod}</p>
-              <p><strong className="text-gray-900">Transaction Date:</strong> {selectedLog.processedAt 
-                ? (selectedLog.processedAt.toDate 
-                  ? new Date(selectedLog.processedAt.toDate()).toLocaleString() 
-                  : new Date(selectedLog.processedAt.replace(' ', ' ')).toLocaleString()
-                ) || 'N/A'
-                : 'N/A'}</p>
+              <p><strong className="text-gray-900">Transaction Date:</strong> {formatTimestamp(selectedLog.processedAt || selectedLog.transactionDate)}</p>
               <p><strong className="text-gray-900">Transaction Code:</strong> {selectedLog.transactionCode || selectedLog.transactionId || selectedLog.chequeNumber || selectedLog.paymentMethod}</p>
               <p><strong className="text-gray-900">Status:</strong> {selectedLog.success ? 'Success' : 'Failed'}</p>
               <p><strong className="text-gray-900">Verified:</strong> {selectedLog.verified ? 'Yes' : 'No'}</p>
@@ -505,12 +539,7 @@ fetchVehicles();
               <p>Are you sure you want to verify this transaction?</p>
               <p><strong>Account Number:</strong> {selectedLog.accountNumber}</p>
               <p><strong>Amount:</strong> {formatCurrency(selectedLog.amount)}</p>
-              <p><strong>Transaction Date:</strong> {selectedLog.processedAt 
-                ? (selectedLog.processedAt.toDate 
-                  ? new Date(selectedLog.processedAt.toDate()).toLocaleString() 
-                  : new Date(selectedLog.processedAt.replace(' ', ' ')).toLocaleString()
-                ) || 'N/A'
-                : 'N/A'}</p>
+              <p><strong>Transaction Date:</strong> {formatTimestamp(selectedLog.processedAt || selectedLog.transactionDate)}</p>
               <p><strong>Transaction Code:</strong> {selectedLog.transactionCode || selectedLog.transactionId || selectedLog.chequeNumber || selectedLog.paymentMethod}</p>
             </div>
             <div className="mt-6 flex justify-end space-x-4">

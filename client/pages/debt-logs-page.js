@@ -190,10 +190,45 @@ export default function DebtLogsPage() {
   }, [debtId, router.isReady]);
 
   const formatTimestamp = (timestamp) => {
-    console.log('Formatting timestamp:', timestamp);
+    if (!timestamp || timestamp === 'N/A' || timestamp === 'Invalid Date' || timestamp === 'undefined' || timestamp === 'null') return 'N/A';
     
-    const date = timestamp?.toDate ? timestamp.toDate() : new Date(timestamp);
-    return isNaN(date.getTime()) ? 'Invalid Date' : date.toLocaleString('en-GB');
+    let date;
+    try {
+      if (typeof timestamp.toDate === 'function') {
+        date = timestamp.toDate();
+      } else if (timestamp.seconds !== undefined) {
+        date = new Date(timestamp.seconds * 1000);
+      } else if (timestamp._seconds !== undefined) {
+        date = new Date(timestamp._seconds * 1000);
+      } else if (typeof timestamp === 'number') {
+        date = new Date(timestamp < 10000000000 ? timestamp * 1000 : timestamp);
+      } else {
+        let ts = timestamp;
+        if (typeof ts === 'string') {
+          // Handle DD/MM/YYYY format which new Date() often fails on
+          if (ts.includes('/') && ts.split('/').length >= 3 && !ts.includes('-')) {
+            const parts = ts.split(/[/ :]/);
+            const day = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1;
+            const year = parseInt(parts[2], 10);
+            const hour = parts[3] ? parseInt(parts[3], 10) : 0;
+            const minute = parts[4] ? parseInt(parts[4], 10) : 0;
+            date = new Date(year, month, day, hour, minute);
+          } else {
+            if (ts.includes(' ') && !ts.includes('T')) {
+                ts = ts.replace(' ', 'T');
+            }
+            date = new Date(ts);
+          }
+        } else {
+          date = new Date(ts);
+        }
+      }
+    } catch (e) {
+      return 'N/A';
+    }
+    
+    return isNaN(date.getTime()) ? 'N/A' : date.toLocaleString('en-GB');
   };
 
   const formatCurrency = (amount) => {

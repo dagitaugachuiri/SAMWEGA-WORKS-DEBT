@@ -200,7 +200,7 @@ router.get('/', authenticate, async (req, res) => {
 
     const debts = snapshot.docs.map(doc => {
       const data = doc.data();
-      const isOverdue = data.dueDate && data.dueDate.seconds && data.dueDate.seconds < currentTimestamp && (data.remainingAmount || 0) > 0;
+      const isOverdue = data.status !== 'deleted' && data.dueDate && data.dueDate.seconds && data.dueDate.seconds < currentTimestamp && (data.remainingAmount || 0) > 0;
       return {
         id: doc.id,
         ...data,
@@ -211,8 +211,9 @@ router.get('/', authenticate, async (req, res) => {
       };
     });
 
-    // Filter debts for overdue status if requested
-    const filteredDebts = status === 'overdue' ? debts.filter(debt => debt.status === 'overdue') : debts;
+    // Filter debts for deleted and overdue status
+    const activeDebts = debts.filter(debt => debt.status !== 'deleted');
+    const filteredDebts = status === 'overdue' ? activeDebts.filter(debt => debt.status === 'overdue') : activeDebts;
 
     // Get total count for pagination info
     const totalQuery = isAdmin
@@ -223,10 +224,10 @@ router.get('/', authenticate, async (req, res) => {
     if (status === 'overdue') {
       total = totalSnapshot.docs.filter(doc => {
         const data = doc.data();
-        return data.dueDate && data.dueDate.seconds && data.dueDate.seconds < currentTimestamp && (data.remainingAmount || 0) > 0;
+        return data.status !== 'deleted' && data.dueDate && data.dueDate.seconds && data.dueDate.seconds < currentTimestamp && (data.remainingAmount || 0) > 0;
       }).length;
     } else {
-      total = totalSnapshot.size;
+      total = totalSnapshot.docs.filter(doc => doc.data().status !== 'deleted').length;
     }
 
     res.json({
@@ -752,7 +753,14 @@ router.delete('/:id', authenticate, async (req, res) => {
       });
     }
 
-    if (debt.status !== 'pending') {
+    if (debt.status === 'deleted') {
+      return res.json({
+        success: true,
+        message: 'Debt record already deleted',
+      });
+    }
+
+    if ((debt.paidAmount || 0) > 0) {
       return res.status(400).json({
         success: false,
         error: 'Cannot delete debt with payments',

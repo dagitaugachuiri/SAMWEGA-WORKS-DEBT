@@ -172,7 +172,7 @@ export default function Dashboard() {
           : bankOptions.includes(methodFilter) && debt.bankDetails?.some(detail => detail.bankName === methodFilter);
 
     const matchesStatus = statusFilter === 'all'
-      ? true
+      ? debt.status !== 'deleted'
       : debt.status === statusFilter;
 
     return matchesSearch && matchesVehiclePlate && matchesDate && matchesMethod && matchesStatus;
